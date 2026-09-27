@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Administration | Portail PBIRS BICEC{% endblock %}
+
+{% block content %}
+<div class="space-y-8 max-w-7xl mx-auto" x-data="{}">
+
+    <!-- En-tête Admin -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <div class="flex items-center gap-3 mb-1">
+                <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-bicec-chocolate to-bicec-orange flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                </div>
+                <span class="text-xs font-bold uppercase tracking-widest text-bicec-orange">Interface Administration</span>
+            </div>
+            <h1 class="text-2xl font-heading font-extrabold text-gray-900 dark:text-white">Tableau de Bord Administrateur</h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Bienvenue, <span class="font-semibold text-gray-700 dark:text-gray-300">{{ user.display_name }}</span> — Gestion du portail PBIRS BICEC</p>
+        </div>
+        <div class="flex items-center gap-2 text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-3 py-2 rounded-xl border border-emerald-200 dark:border-emerald-800">
+            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Accès Administrateur Actif
+        </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+        <!-- Rapports Portail -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                </div>
+                <span class="text-2xl font-black text-blue-600">{{ stats.total_reports_portail }}</span>
+            </div>
+            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Rapports Portail</p>
+            <p class="text-[11px] text-gray-400 mt-0.5">Base locale SQLite</p>
+        </div>
+
+        <!-- Rapports PBIRS (dont cachés) -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                </div>
+                <span class="text-2xl font-black text-amber-600">{{ stats.hidden_reports }}</span>
+            </div>
+            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Rapports Cachés PBIRS</p>
+            <p class="text-[11px] text-gray-400 mt-0.5">Sur {{ stats.total_reports_pbirs }} dans ReportServer</p>
+        </div>
+
+        <!-- Anomalies en attente -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 border {% if stats.anomalies_pending > 0 %}border-red-200 dark:border-red-900{% else %}border-gray-200 dark:border-gray-700{% endif %} shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-xl {% if stats.anomalies_pending > 0 %}bg-red-100 dark:bg-red-950{% else %}bg-emerald-100 dark:bg-emerald-950{% endif %} flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 {% if stats.anomalies_pending > 0 %}text-red-600{% else %}text-emerald-600{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                </div>
+                <span class="text-2xl font-black {% if stats.anomalies_pending > 0 %}text-red-600{% else %}text-emerald-600{% endif %}">{{ stats.anomalies_pending }}</span>
+            </div>
+            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Anomalies en Attente</p>
+            <p class="text-[11px] text-gray-400 mt-0.5">{{ stats.anomalies_nouveau }} nouveaux · {{ stats.anomalies_en_traitement }} en cours</p>
+        </div>
+
+        <!-- Consultations 7j -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+            <div class="flex items-center justify-between mb-3">
+                <div class="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-950 flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                </div>
+                <span class="text-2xl font-black text-purple-600">{{ stats.views_7d }}</span>
+            </div>
+            <p class="text-xs font-semibold text-gray-700 dark:text-gray-300">Consultations (7 jours)</p>
+            <p class="text-[11px] text-gray-400 mt-0.5">Activité récente du portail</p>
+        </div>
+
+    </div>
+
+    <!-- Accès rapide -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        <!-- Catalogue ReportServer -->
+        <a href="/admin/catalog" class="group bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-bicec-orange/40 transition-all duration-300 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-bicec-orange flex items-center justify-center shadow-lg shadow-orange-500/30 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+                </svg>
+            </div>
+            <div class="flex-1">
+                <h3 class="font-heading font-bold text-base text-gray-900 dark:text-white group-hover:text-bicec-orange transition-colors">Catalogue ReportServer</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Voir et gérer les rapports PBIRS, démasquer les rapports cachés</p>
+                {% if stats.hidden_reports > 0 %}
+                <span class="inline-flex items-center mt-2 gap-1 text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                    {{ stats.hidden_reports }} rapport(s) caché(s)
+                </span>
+                {% endif %}
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300 group-hover:text-bicec-orange transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </a>
+
+        <!-- Signalements d'anomalies -->
+        <a href="/admin/anomalies" class="group bg-white dark:bg-gray-800 rounded-2xl p-6 border {% if stats.anomalies_pending > 0 %}border-red-200 dark:border-red-900 bg-red-50/30 dark:bg-red-950/10{% else %}border-gray-200 dark:border-gray-700{% endif %} shadow-sm hover:shadow-xl hover:border-red-400/40 transition-all duration-300 flex items-center gap-5">
+            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center shadow-lg shadow-red-500/30 group-hover:scale-110 transition-transform relative">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                {% if stats.anomalies_pending > 0 %}
+                <span class="absolute -top-1.5 -right-1.5 w-5 h-5 bg-white rounded-full flex items-center justify-center text-[10px] font-black text-red-600 border-2 border-red-500 animate-bounce">
+                    {{ stats.anomalies_pending }}
+                </span>
+                {% endif %}
+            </div>
+            <div class="flex-1">
+                <h3 class="font-heading font-bold text-base text-gray-900 dark:text-white group-hover:text-red-600 transition-colors">Signalements d'Anomalies</h3>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Traiter les anomalies remontées par les utilisateurs des rapports</p>
+                {% if stats.anomalies_pending > 0 %}
+                <span class="inline-flex items-center mt-2 gap-1 text-[11px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                    ⚠ {{ stats.anomalies_pending }} en attente de traitement
+                </span>
+                {% endif %}
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-300 group-hover:text-red-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+            </svg>
+        </a>
+
+    </div>
+
+    <!-- Derniers signalements -->
+    {% if recent_anomalies %}
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+            <h2 class="font-heading font-bold text-base text-gray-900 dark:text-white">Derniers Signalements</h2>
+            <a href="/admin/anomalies" class="text-xs font-semibold text-bicec-orange hover:underline">Voir tous →</a>
+        </div>
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for anomaly in recent_anomalies %}
+            <div class="px-6 py-4 flex items-start justify-between gap-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">{{ anomaly.report_name }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{{ anomaly.description[:80] }}{% if anomaly.description|length > 80 %}...{% endif %}</p>
+                    <p class="text-[11px] text-gray-400 mt-1">Par <span class="font-medium">{{ anomaly.user_name }}</span> · {{ anomaly.created_at }}</p>
+                </div>
+                {% set status_classes = {
+                    'nouveau': 'bg-red-100 text-red-700 border-red-200',
+                    'en_traitement': 'bg-amber-100 text-amber-700 border-amber-200',
+                    'résolu': 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                } %}
+                {% set status_icons = {'nouveau': '🔴', 'en_traitement': '🟡', 'résolu': '🟢'} %}
+                <span class="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border {{ status_classes.get(anomaly.status, 'bg-gray-100 text-gray-700 border-gray-200') }}">
+                    {{ status_icons.get(anomaly.status, '⚪') }} {{ anomaly.status|title }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12 text-center">
+        <div class="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mx-auto mb-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+        </div>
+        <p class="font-semibold text-gray-700 dark:text-gray-300">Aucun signalement en attente</p>
+        <p class="text-sm text-gray-400 mt-1">Tous les rapports fonctionnent correctement.</p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

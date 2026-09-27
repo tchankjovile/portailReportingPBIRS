@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Signalements d'Anomalies | Admin PBIRS BICEC{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- En-tête -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <a href="/admin" class="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-orange-50 text-gray-600 hover:text-bicec-orange transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+            </a>
+            <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-bicec-orange">Administration</span>
+                <h1 class="text-xl font-heading font-extrabold text-gray-900 dark:text-white">Signalements d'Anomalies</h1>
+                <p class="text-xs text-gray-500 mt-0.5">Anomalies remontées par les utilisateurs des rapports</p>
+            </div>
+        </div>
+
+        <!-- Compteur global -->
+        {% if stats.anomalies_pending > 0 %}
+        <div class="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+            <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ stats.anomalies_pending }} signalement(s) en attente</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Filtres statut -->
+    <div class="flex items-center gap-2 flex-wrap">
+        {% set filter_configs = [
+            ('tous', 'Tous', 'gray'),
+            ('nouveau', '🔴 Nouveau', 'red'),
+            ('en_traitement', '🟡 En traitement', 'amber'),
+            ('résolu', '🟢 Résolu', 'emerald')
+        ] %}
+        {% for val, label, color in filter_configs %}
+        <a href="/admin/anomalies?status_filter={{ val }}"
+           class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors {% if status_filter == val %}bg-bicec-chocolate text-white dark:bg-bicec-orange{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600{% endif %}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Tableau des signalements -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        {% if anomalies %}
+        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+            {% for anomaly in anomalies %}
+            <div class="p-5 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors" x-data="{ expanded: false, actionOpen: false }">
+                <div class="flex items-start justify-between gap-4">
+
+                    <!-- Info principale -->
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap mb-1">
+                            {% set status_classes = {
+                                'nouveau': 'bg-red-100 text-red-700 border-red-200',
+                                'en_traitement': 'bg-amber-100 text-amber-700 border-amber-200',
+                                'résolu': 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                            } %}
+                            {% set status_icons = {'nouveau': '🔴', 'en_traitement': '🟡', 'résolu': '🟢'} %}
+                            <span id="status-badge-{{ anomaly.id }}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border {{ status_classes.get(anomaly.status, 'bg-gray-100 text-gray-700 border-gray-200') }}">
+                                {{ status_icons.get(anomaly.status, '⚪') }} {{ anomaly.status|title|replace('_', ' ') }}
+                            </span>
+                            <span class="text-xs font-mono text-gray-400">#{{ anomaly.id }}</span>
+                        </div>
+
+                        <h3 class="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                            📊 {{ anomaly.report_name }}
+                        </h3>
+                        
+                        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed" :class="{ 'line-clamp-2': !expanded }">
+                            {{ anomaly.description }}
+                        </p>
+                        {% if anomaly.description|length > 100 %}
+                        <button @click="expanded = !expanded" class="text-xs text-bicec-orange hover:underline mt-1">
+                            <span x-show="!expanded">Voir plus</span>
+                            <span x-show="expanded" style="display:none;">Réduire</span>
+                        </button>
+                        {% endif %}
+
+                        <div class="flex items-center gap-3 mt-2 flex-wrap">
+                            <span class="text-[11px] text-gray-400">
+                                👤 <span class="font-medium text-gray-600 dark:text-gray-300">{{ anomaly.user_name }}</span>
+                            </span>
+                            {% if anomaly.user_dept %}
+                            <span class="text-[11px] text-gray-400">· {{ anomaly.user_dept }}</span>
+                            {% endif %}
+                            <span class="text-[11px] text-gray-400">· {{ anomaly.created_at }}</span>
+                            {% if anomaly.status == 'résolu' and anomaly.resolved_by %}
+                            <span class="text-[11px] text-emerald-600">· Résolu par {{ anomaly.resolved_by }} le {{ anomaly.resolved_at }}</span>
+                            {% endif %}
+                        </div>
+
+                        {% if anomaly.admin_comment %}
+                        <div class="mt-2 p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-100 dark:border-blue-900">
+                            <p class="text-xs text-blue-700 dark:text-blue-300"><span class="font-semibold">Note admin :</span> {{ anomaly.admin_comment }}</p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Actions rapides -->
+                    <div class="flex-shrink-0 flex flex-col gap-2" x-data="{ formOpen: false }">
+                        
+                        {% if anomaly.status != 'résolu' %}
+                        <button @click="formOpen = !formOpen"
+                                class="px-3 py-1.5 rounded-lg text-xs font-bold bg-bicec-orange text-white hover:bg-bicec-orange-hover transition-colors whitespace-nowrap">
+                            Traiter
+                        </button>
+                        {% endif %}
+
+                        <!-- Formulaire d'action inline -->
+                        <div x-show="formOpen" x-transition style="display:none" class="mt-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2 min-w-[220px]">
+                            <form hx-post="/admin/anomalies/{{ anomaly.id }}/status"
+                                  hx-target="#status-badge-{{ anomaly.id }}"
+                                  hx-swap="outerHTML"
+                                  hx-on::after-request="formOpen = false"
+                                  class="space-y-2">
+                                <select name="new_status" class="w-full text-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-bicec-orange">
+                                    {% if anomaly.status == 'nouveau' %}
+                                    <option value="en_traitement">🟡 Passer En traitement</option>
+                                    {% endif %}
+                                    <option value="résolu">🟢 Marquer Résolu</option>
+                                </select>
+                                <textarea name="admin_comment" 
+                                          placeholder="Commentaire optionnel..." 
+                                          rows="2"
+                                          class="w-full text-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-bicec-orange resize-none"></textarea>
+                                <div class="flex gap-2">
+                                    <button type="submit" class="flex-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-bicec-chocolate text-white hover:bg-bicec-chocolate-dark transition-colors">
+                                        Confirmer
+                                    </button>
+                                    <button type="button" @click="formOpen = false" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors">
+                                        Annuler
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="py-16 text-center">
+            <div class="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+            </div>
+            <p class="font-semibold text-gray-700 dark:text-gray-300">Aucun signalement pour ce filtre</p>
+            <p class="text-sm text-gray-400 mt-1">Tous les rapports signalés ont été traités.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

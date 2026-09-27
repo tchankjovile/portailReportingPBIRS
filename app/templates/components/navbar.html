@@ -1,0 +1,132 @@
+<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-30">
+    <div class="px-4 lg:px-8 py-3 flex items-center justify-between gap-4">
+        
+        <!-- Left: Logo & Sidebar Toggle -->
+        <div class="flex items-center gap-4">
+            <button @click="sidebarOpen = !sidebarOpen" 
+                    class="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+
+            <!-- BICEC Logo -->
+            <a href="/" class="flex items-center gap-3 group">
+                <div class="h-12 w-auto">
+                    <img src="/static/images/bicec_logo.png" alt="BICEC Logo" class="h-12 w-auto object-contain">
+                </div>
+                <div class="hidden sm:flex flex-col border-l border-gray-200 dark:border-gray-700 pl-3">
+                    <span class="font-heading font-bold text-xs text-bicec-chocolate dark:text-orange-400 tracking-widest uppercase">Portail Reporting</span>
+                    <span class="text-[10px] text-bicec-orange font-semibold tracking-widest uppercase">PBIRS Enterprise</span>
+                </div>
+            </a>
+        </div>
+
+        <!-- Center: HTMX Instant Search Bar -->
+        <div class="flex-1 max-w-xl hidden md:block">
+            <div class="relative">
+                <input type="text"
+                       name="q"
+                       placeholder="Rechercher un rapport, un tableau de bord, un KPI..."
+                       value="{{ search_query or '' }}"
+                       hx-get="/api/search"
+                       hx-trigger="keyup changed delay:300ms, search"
+                       hx-target="#reports-container"
+                       hx-include="[name='dept']"
+                       class="w-full pl-10 pr-10 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-full border border-transparent focus:border-bicec-orange focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-orange-200 dark:focus:ring-orange-900 transition-all outline-none">
+                
+                <!-- Search Icon -->
+                <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+
+                <!-- HTMX Indicator Loading Spinner -->
+                <div class="htmx-indicator absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                    <svg class="animate-spin h-4 w-4 text-bicec-orange" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: AD User Profile, Persona Switcher & Theme Toggle -->
+        <div class="flex items-center gap-3">
+            
+            <!-- Dark / Light Mode Switcher -->
+            <button @click="darkMode = !darkMode" 
+                    class="p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    title="Basculer le thème">
+                <svg x-show="!darkMode" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+                <svg x-show="darkMode" xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" style="display: none;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+            </button>
+
+            <!-- Active Directory User Profile & RLS Role Switcher -->
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" 
+                        class="flex items-center gap-3 p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 transition-colors">
+                    
+                    <!-- Avatar with AD Initials -->
+                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-bicec-chocolate to-bicec-orange text-white flex items-center justify-center font-bold text-xs shadow">
+                        {{ user.display_name[:2].upper() if user and user.display_name else 'AD' }}
+                    </div>
+
+                    <div class="hidden lg:flex flex-col text-left pr-1">
+                        <span class="text-xs font-bold text-gray-800 dark:text-gray-100 leading-tight">
+                            {{ user.display_name }}
+                        </span>
+                        <span class="text-[10px] text-bicec-orange font-medium flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            {{ user.department }}
+                        </span>
+                    </div>
+
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                <!-- Dropdown Menu: AD User Info & Persona Test Selector -->
+                <div x-show="open" 
+                     @click.away="open = false"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="transform opacity-0 scale-95"
+                     x-transition:enter-end="transform opacity-100 scale-100"
+                     x-transition:leave="transition ease-in duration-75"
+                     x-transition:leave-start="transform opacity-100 scale-100"
+                     x-transition:leave-end="transform opacity-0 scale-95"
+                     class="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-3 z-50 divide-y divide-gray-100 dark:divide-gray-700"
+                     style="display: none;">
+                    
+                    <!-- User Header -->
+                    <div class="px-4 py-2">
+                        <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Compte Windows Active Directory</p>
+                        <p class="text-sm font-bold text-gray-900 dark:text-white mt-1">{{ user.display_name }}</p>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 font-mono">{{ user.upn }}</p>
+                        <div class="mt-2 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-orange-100 text-bicec-chocolate dark:bg-orange-950 dark:text-orange-300">
+                            {{ user.title or 'Collaborateur BICEC' }}
+                        </div>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="px-4 pt-2">
+                        <a href="/api/auth/logout" class="flex items-center gap-2 text-xs font-semibold text-red-600 hover:text-red-700 py-1.5">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            Se déconnecter
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</header>

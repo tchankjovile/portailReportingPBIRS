@@ -1,0 +1,416 @@
+/* =====================================================
+   BICEC PBIRS Portal — Design System & Theme CSS
+   Charte Institutionnelle BICEC
+   Orange BICEC: #E67900 | Chocolat BICEC: #491E06
+   ===================================================== */
+
+/* --- Root Variables & BICEC Brand Tokens --- */
+:root {
+    --bicec-orange: #E67900;
+    --bicec-orange-hover: #cf6c00;
+    --bicec-orange-light: #fff8f0;
+    --bicec-orange-pale: #fef3e2;
+    --bicec-chocolate: #491E06;
+    --bicec-chocolate-dark: #321404;
+    --bicec-chocolate-light: #6e300b;
+
+    --surface: #FFFFFF;
+    --surface-alt: #F8F9FA;
+    --surface-border: #E9ECEF;
+
+    --text-primary: #1A1A2E;
+    --text-secondary: #6B7280;
+    --text-muted: #9CA3AF;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.06);
+    --shadow-bicec: 0 8px 30px rgba(230, 121, 0, 0.25);
+
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --radius-xl: 20px;
+    --radius-2xl: 24px;
+
+    --transition-fast: 150ms ease;
+    --transition-base: 200ms ease;
+    --transition-slow: 300ms ease;
+}
+
+/* --- Dark Mode Tokens --- */
+.dark {
+    --surface: #111827;
+    --surface-alt: #1F2937;
+    --surface-border: #374151;
+    --text-primary: #F9FAFB;
+    --text-secondary: #9CA3AF;
+    --text-muted: #6B7280;
+}
+
+/* --- Global Typography --- */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, .font-heading {
+    font-family: 'Outfit', system-ui, sans-serif;
+}
+
+/* --- Custom Scrollbars (Chrome/Edge/Safari) --- */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: #F3F4F6;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--bicec-orange);
+    border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--bicec-chocolate);
+}
+
+.dark ::-webkit-scrollbar-track {
+    background: #1F2937;
+}
+
+/* --- HTMX Loading Indicator --- */
+.htmx-indicator {
+    display: none;
+    opacity: 0;
+    transition: opacity var(--transition-base);
+}
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: flex;
+    opacity: 1;
+}
+
+/* --- BICEC Brand Button System --- */
+.btn-bicec {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: var(--radius-lg);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+    letter-spacing: 0.01em;
+    cursor: pointer;
+    border: none;
+    outline: none;
+    transition: all var(--transition-base);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.btn-bicec-primary {
+    background: var(--bicec-orange);
+    color: white;
+    box-shadow: 0 4px 14px rgba(230, 121, 0, 0.35);
+}
+
+.btn-bicec-primary:hover {
+    background: var(--bicec-orange-hover);
+    box-shadow: 0 6px 20px rgba(230, 121, 0, 0.45);
+    transform: translateY(-1px);
+}
+
+.btn-bicec-secondary {
+    background: transparent;
+    color: var(--bicec-orange);
+    border: 1.5px solid var(--bicec-orange);
+}
+
+.btn-bicec-secondary:hover {
+    background: var(--bicec-orange-light);
+}
+
+/* --- Card System --- */
+.card-bicec {
+    background: var(--surface);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-sm);
+    transition: all var(--transition-slow);
+}
+
+.card-bicec:hover {
+    box-shadow: var(--shadow-md);
+    border-color: rgba(230, 121, 0, 0.25);
+    transform: translateY(-2px);
+}
+
+/* --- Status Badge System --- */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.badge-orange {
+    background: var(--bicec-orange-pale);
+    color: var(--bicec-orange);
+    border: 1px solid rgba(230, 121, 0, 0.2);
+}
+
+.badge-emerald {
+    background: #ECFDF5;
+    color: #059669;
+    border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.badge-gray {
+    background: #F3F4F6;
+    color: #4B5563;
+}
+
+/* --- Report Card Animations --- */
+.report-card {
+    transition: transform var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.report-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.1), 0 4px 10px rgba(230, 121, 0, 0.08);
+}
+
+/* --- iFrame Report Embed Viewer --- */
+.report-iframe-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 600px;
+    background: #F8F9FA;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.report-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: var(--radius-xl);
+}
+
+/* --- Sidebar Navigation Animations --- */
+.sidebar-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    border-radius: var(--radius-md);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #6B7280;
+    text-decoration: none;
+    transition: all var(--transition-base);
+    position: relative;
+    overflow: hidden;
+}
+
+.sidebar-nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: var(--bicec-orange);
+    transform: scaleY(0);
+    transition: transform var(--transition-base);
+}
+
+.sidebar-nav-item:hover {
+    background: var(--bicec-orange-light);
+    color: var(--bicec-orange);
+}
+
+.sidebar-nav-item:hover::before {
+    transform: scaleY(1);
+}
+
+.sidebar-nav-item.active {
+    background: var(--bicec-orange-light);
+    color: var(--bicec-orange);
+    font-weight: 700;
+}
+
+.sidebar-nav-item.active::before {
+    transform: scaleY(1);
+}
+
+/* --- Search Input Focus Ring --- */
+.search-input:focus {
+    border-color: var(--bicec-orange);
+    box-shadow: 0 0 0 3px rgba(230, 121, 0, 0.15);
+    outline: none;
+}
+
+/* --- DAX Inspector / Code Panel --- */
+.dax-panel {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+}
+
+.dax-keyword {
+    color: #fb923c;
+    font-weight: 600;
+}
+
+.dax-string {
+    color: #86efac;
+}
+
+.dax-operator {
+    color: #fbbf24;
+}
+
+/* --- Glassmorphism Utility (for modals/overlays) --- */
+.glass {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.dark .glass {
+    background: rgba(17, 24, 39, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* --- Toast Notification System --- */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    min-width: 280px;
+    padding: 14px 18px;
+    border-radius: var(--radius-lg);
+    background: var(--bicec-chocolate);
+    color: white;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    box-shadow: var(--shadow-xl);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: slideInToast 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.toast.toast-success {
+    background: linear-gradient(135deg, #059669, #047857);
+}
+
+.toast.toast-favorite {
+    background: linear-gradient(135deg, var(--bicec-orange), var(--bicec-chocolate));
+}
+
+@keyframes slideInToast {
+    from { transform: translateX(120%); opacity: 0; }
+    to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes fadeOutToast {
+    from { transform: translateX(0); opacity: 1; }
+    to   { transform: translateX(120%); opacity: 0; }
+}
+
+/* --- Page Transitions --- */
+.page-enter {
+    animation: fadeInUp 0.35s ease-out forwards;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(12px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* --- Pulse Animation for Live Status --- */
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #10B981;
+    animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.7; }
+}
+
+/* --- Gradient Text Utility --- */
+.gradient-text-bicec {
+    background: linear-gradient(135deg, var(--bicec-orange), var(--bicec-chocolate));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* --- Institutional Hero Banner Animations --- */
+.hero-banner-bg {
+    background: linear-gradient(135deg, var(--bicec-chocolate) 0%, #6e300b 50%, var(--bicec-orange) 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero-banner-bg::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 75% 50%, rgba(230,121,0,0.2) 0%, transparent 60%);
+    pointer-events: none;
+}
+
+/* --- Scrollbar None Utility --- */
+.scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+    display: none;
+}
+
+/* --- Responsive Full-Screen Iframe Mode --- */
+.fullscreen-mode {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: #000;
+    border-radius: 0;
+}
+
+.fullscreen-mode iframe {
+    border-radius: 0;
+    width: 100vw;
+    height: 100vh;
+}

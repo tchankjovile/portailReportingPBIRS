@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Catalogue des Rapports | Portail Reporting PBIRS BICEC{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- Page Header & Filter Controls -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-6 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        
+        <div>
+            <h1 class="text-2xl font-heading font-extrabold text-gray-900 dark:text-white">
+                Catalogue Général des Rapports
+            </h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Filtrez et accédez aux tableaux de bord certifiés Power BI Report Server de la BICEC.
+            </p>
+        </div>
+
+        <!-- Department Tabs Filter -->
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-2 md:pb-0 scrollbar-none" x-data="{ currentDept: '{{ selected_dept }}' }">
+            {% for dept in departments %}
+            <button @click="currentDept = '{{ dept }}'"
+                    hx-get="/api/search?dept={{ dept }}"
+                    hx-target="#reports-container"
+                    hx-include="[name='q']"
+                    :class="{ 'bg-bicec-orange text-white font-bold shadow-md': currentDept === '{{ dept }}', 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-gray-600': currentDept !== '{{ dept }}' }"
+                    class="px-3.5 py-1.5 rounded-full text-xs transition-all duration-200 whitespace-nowrap">
+                {{ dept }}
+            </button>
+            {% endfor %}
+        </div>
+
+    </div>
+
+    <!-- Hidden input for selected dept -->
+    <input type="hidden" name="dept" value="{{ selected_dept }}">
+
+    <!-- HTMX Dynamic Container for Report Cards Grid -->
+    <div id="reports-container">
+        {% include "components/search_results.html" %}
+    </div>
+
+</div>
+{% endblock %}

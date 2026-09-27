@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion Active Directory | Portail Reporting BICEC</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        bicec: {
+                            orange: '#E67900',
+                            'orange-hover': '#cf6c00',
+                            chocolate: '#491E06',
+                            'chocolate-dark': '#321404'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Outfit', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="h-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-bicec-chocolate-dark to-slate-950 font-sans selection:bg-orange-500 selection:text-white">
+
+    <div class="w-full max-w-md space-y-6">
+        
+        <!-- Login Card -->
+        <div class="bg-white rounded-3xl shadow-2xl p-8 space-y-6 border border-gray-100">
+            
+            <!-- BICEC Logo Header -->
+            <div class="text-center space-y-3">
+                <div class="h-20 w-auto mx-auto flex items-center justify-center">
+                    <img src="/static/images/bicec_logo.png" alt="BICEC Logo" class="h-20 max-w-[220px] object-contain drop-shadow-sm">
+                </div>
+                <div>
+                    <h1 class="font-heading font-black text-xl text-bicec-chocolate tracking-tight">
+                        PORTAIL REPORTING PBIRS
+                    </h1>
+                    <p class="text-xs text-gray-500 font-medium">
+                        Authentification Centralisée Active Directory (SSO)
+                    </p>
+                </div>
+            </div>
+
+            <!-- AD Login Form -->
+            <form action="/api/auth/login" method="POST" class="space-y-4">
+                
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-gray-700 uppercase tracking-wider">Identifiant Windows / UPN</label>
+                    <div class="relative">
+                        <input type="text" 
+                               name="username" 
+                               required 
+                               placeholder="e.tchana@bicec.cm"
+                               value="e.tchana"
+                               class="w-full px-4 py-2.5 text-sm bg-gray-50 rounded-xl border border-gray-200 focus:border-bicec-orange focus:bg-white focus:ring-2 focus:ring-orange-200 transition-all outline-none font-medium text-gray-900">
+                        <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-gray-400 text-xs font-mono">
+                            @bicec.cm
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-gray-700 uppercase tracking-wider">Mot de passe Domaine</label>
+                    <input type="password" 
+                           name="password" 
+                           required 
+                           value="password123"
+                           placeholder="••••••••••••"
+                           class="w-full px-4 py-2.5 text-sm bg-gray-50 rounded-xl border border-gray-200 focus:border-bicec-orange focus:bg-white focus:ring-2 focus:ring-orange-200 transition-all outline-none">
+                </div>
+
+                <div class="flex items-center justify-between text-xs pt-1">
+                    <label class="flex items-center gap-2 text-gray-600 cursor-pointer">
+                        <input type="checkbox" checked class="rounded text-bicec-orange focus:ring-orange-400">
+                        <span>Authentification SSO Windows</span>
+                    </label>
+                    <a href="#" @click.prevent="alert('En cas d\'oubli, veuillez contacter le Support Informatique BICEC (Poste 4400).')" class="text-bicec-orange hover:underline font-semibold">Besoin d'aide ?</a>
+                </div>
+
+                <button type="submit" 
+                        class="w-full py-3 rounded-xl font-heading font-extrabold text-sm text-white bg-bicec-orange hover:bg-bicec-orange-hover shadow-lg shadow-orange-500/30 transition-all duration-200 flex items-center justify-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                    </svg>
+                    Connexion Session Active Directory
+                </button>
+            </form>
+
+            <!-- Pre-defined AD Personas Quick Selector (Demo Mode) -->
+            <div class="pt-4 border-t border-gray-100 space-y-2">
+                <p class="text-[11px] font-bold text-center uppercase tracking-wider text-bicec-orange">
+                    Rôles AD Préconfigurés pour Démonstration DAX RLS
+                </p>
+                <div class="grid grid-cols-2 gap-2">
+                    {% for key, persona in (demo_users or {}).items() %}
+                    <form action="/api/auth/switch-persona/{{ key }}" method="POST">
+                        <button type="submit" 
+                                class="w-full p-2 text-left bg-gray-50 hover:bg-orange-50 rounded-xl border border-gray-100 hover:border-orange-200 transition-colors group">
+                            <div class="text-xs font-bold text-gray-800 group-hover:text-bicec-orange truncate">{{ persona.display_name }}</div>
+                            <div class="text-[10px] text-gray-500 truncate">{{ persona.department }}</div>
+                        </button>
+                    </form>
+                    {% endfor %}
+                </div>
+            </div>
+
+        </div>
+
+        <p class="text-center text-xs text-gray-400">
+            &copy; 2026 Banque Internationale du Cameroun pour l'Épargne et le Crédit (BICEC).
+        </p>
+
+    </div>
+
+</body>
+</html>

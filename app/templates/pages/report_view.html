@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}{{ report.name }} | Portail PBIRS BICEC{% endblock %}
+
+{% block content %}
+<div class="space-y-6 max-w-7xl mx-auto">
+
+    <!-- Top Navigation Bar & Action Bar -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 px-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        
+        <div class="flex items-center gap-3">
+            <a href="/catalog" 
+               class="p-2 rounded-xl bg-gray-100 dark:bg-gray-700 hover:bg-orange-50 text-gray-600 dark:text-gray-300 hover:text-bicec-orange transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+            </a>
+            <div>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-bicec-orange">
+                    {{ report.department }}
+                </span>
+                <h1 class="text-lg font-heading font-extrabold text-gray-900 dark:text-white leading-tight">
+                    {{ report.name }}
+                </h1>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2">
+            <!-- HTMX Favorite Button -->
+            <button hx-post="/api/favorites/toggle/{{ report.id }}"
+                    hx-target="this"
+                    hx-swap="outerHTML"
+                    title="{% if report.is_favorite %}Retirer des favoris{% else %}Ajouter aux favoris{% endif %}"
+                    class="p-2 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-orange-50 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" 
+                     class="w-5 h-5 {% if report.is_favorite %}fill-[#E67900] text-[#E67900]{% else %}fill-none text-gray-400{% endif %}" 
+                     viewBox="0 0 24 24" 
+                     stroke="currentColor" 
+                     stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Report Embed Viewer Container -->
+    <div id="report-embed-container">
+        {% include "components/report_embed.html" %}
+    </div>
+
+</div>
+
+<!-- ============================================================
+     Bouton Flottant "Signaler une Anomalie" + Modal
+     Visible par tous les utilisateurs authentifiés
+     ============================================================ -->
+<div x-data="{ anomalyOpen: false, submitted: false }" class="fixed bottom-8 right-8 z-50">
+
+    <!-- Bouton flottant -->
+    <button @click="anomalyOpen = true; submitted = false"
+            title="Signaler une anomalie sur ce rapport"
+            class="group flex items-center gap-2 bg-gradient-to-r from-red-600 to-rose-600 text-white px-4 py-3 rounded-2xl shadow-2xl shadow-red-500/40 hover:shadow-red-500/60 hover:scale-105 active:scale-95 transition-all duration-200 font-bold text-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+        </svg>
+        <span>Signaler une anomalie</span>
+    </button>
+
+    <!-- Modal Signalement -->
+    <div x-show="anomalyOpen"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+         x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+         x-transition:leave-end="opacity-0 scale-95 translate-y-4"
+         @click.away="anomalyOpen = false"
+         style="display:none"
+         class="absolute bottom-16 right-0 w-96 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+
+        <!-- En-tête modal -->
+        <div class="bg-gradient-to-r from-red-600 to-rose-600 px-5 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div>
+                    <p class="text-white font-bold text-sm">Signaler une Anomalie</p>
+                    <p class="text-red-200 text-[11px]">{{ report.name }}</p>
+                </div>
+            </div>
+            <button @click="anomalyOpen = false" class="text-white/70 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Corps modal -->
+        <div class="p-5">
+            <!-- Zone de résultat (succès ou erreur) -->
+            <div id="anomaly-result"></div>
+
+            <!-- Formulaire de signalement -->
+            <div x-show="!submitted">
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-4">
+                    Décrivez l'anomalie que vous observez sur ce rapport. L'équipe d'administration sera notifiée.
+                </p>
+                <form hx-post="/api/anomalies/submit"
+                      hx-target="#anomaly-result"
+                      hx-swap="innerHTML"
+                      hx-on::after-request="if(event.detail.successful) { submitted = true }"
+                      class="space-y-4">
+                    <input type="hidden" name="report_id" value="{{ report.id }}">
+                    <input type="hidden" name="report_name" value="{{ report.name }}">
+                    <input type="hidden" name="report_path" value="{{ report.path }}">
+
+                    <div>
+                        <label class="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1.5 block">
+                            Description de l'anomalie <span class="text-red-500">*</span>
+                        </label>
+                        <textarea name="description"
+                                  required
+                                  rows="4"
+                                  placeholder="Ex: Les chiffres du tableau de bord ne correspondent pas aux données habituelles. La colonne 'Total Agences' affiche 0 pour toutes les agences..."
+                                  class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100 dark:focus:ring-red-900/30 resize-none transition-all"></textarea>
+                    </div>
+
+                    <button type="submit"
+                            class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 text-white font-bold text-sm hover:from-red-700 hover:to-rose-700 active:scale-95 transition-all shadow-md shadow-red-500/30">
+                        Envoyer le Signalement
+                    </button>
+                </form>
+            </div>
+
+            <!-- Message succès -->
+            <div x-show="submitted" style="display:none" class="py-2">
+                <div id="anomaly-result"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
