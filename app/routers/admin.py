@@ -90,20 +90,47 @@ async def unhide_catalog_item(
     item_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Démasque un rapport dans la base ReportServer (Hidden → 0)."""
+    """Démasque un rapport dans la base ReportServer (Hidden → 0) de façon pérenne."""
     user = require_admin(request)
     success = unhide_report_in_reportserver(item_id)
     if success:
+        # Re-synchroniser immédiatement le catalogue du portail
+        try:
+            await report_service.sync_catalog_if_empty(db)
+        except Exception as e:
+            pass
+
         return HTMLResponse(f"""
         <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
             VISIBLE
         </span>
-        <span class="text-xs text-emerald-600 ml-2 font-medium">✓ Démasqué avec succès</span>
+        <span class="text-xs text-emerald-600 ml-2 font-medium">✓ Démasqué & réactivé (+12 mois)</span>
         """)
     else:
         return HTMLResponse(f"""
         <span class="text-xs text-red-600 font-medium">✗ Erreur lors du démasquage</span>
+        """)
+
+
+@router.post("/sync", response_class=HTMLResponse)
+async def admin_sync_catalog(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Force une re-synchronisation complète du catalogue depuis PBIRS et ReportServer."""
+    user = require_admin(request)
+    try:
+        await report_service.sync_catalog_if_empty(db)
+        return HTMLResponse("""
+        <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            Catalogue synchronisé
+        </span>
+        """)
+    except Exception as e:
+        return HTMLResponse(f"""
+        <span class="text-xs text-red-600 font-medium">Erreur synchronisation : {e}</span>
         """)
 
 

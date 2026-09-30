@@ -11,3 +11,6 @@ httpx-ntlm>=1.4.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 pyodbc>=4.0.39
+pywin32>=306
+requests>=2.31.0
+requests-negotiate-sspi>=0.5.2

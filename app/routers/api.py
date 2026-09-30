@@ -20,7 +20,7 @@ async def live_search(
     from app.auth.security import is_admin
     from app.templates_env import templates
     user = require_authenticated_user(request)
-    reports = await report_service.get_all_reports(db, department=dept, search_query=q, user_upn=user.get("upn"))
+    reports = await report_service.get_all_reports(db, department=dept, search_query=q, user_upn=user.get("upn"), user=user)
 
     return templates.TemplateResponse(
         "components/search_results.html",

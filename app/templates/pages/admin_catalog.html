@@ -19,8 +19,16 @@
             </div>
         </div>
 
-        <!-- Filtres -->
+        <!-- Filtres & Synchronisation -->
         <div class="flex items-center gap-2">
+            <button hx-post="/admin/sync"
+                    hx-swap="outerHTML"
+                    class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-orange-50 hover:text-bicec-orange text-gray-700 dark:text-gray-300 transition-colors flex items-center gap-1.5 shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 text-bicec-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Synchroniser PBIRS
+            </button>
             <a href="/admin/catalog?filter_hidden=tous" 
                class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors {% if filter_hidden == 'tous' %}bg-bicec-chocolate text-white{% else %}bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200{% endif %}">
                 Tous
@@ -68,7 +76,7 @@
                         <!-- Nom -->
                         <td class="px-5 py-4">
                             <div class="flex items-center gap-2.5">
-                                {% if item.Type == 5 %}
+                                {% if item.Type in [5, 13] %}
                                 <div class="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-950 flex items-center justify-center flex-shrink-0">
                                     <span class="text-[10px] font-black text-amber-600">PBI</span>
                                 </div>
@@ -91,7 +99,7 @@
                         </td>
                         <!-- Type -->
                         <td class="px-5 py-4 hidden lg:table-cell">
-                            {% if item.Type == 5 %}
+                            {% if item.Type in [5, 13] %}
                             <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-700">Power BI</span>
                             {% else %}
                             <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700">PBIRS</span>
@@ -111,9 +119,19 @@
                             </span>
                             {% endif %}
                         </td>
-                        <!-- Modifié -->
+                        <!-- Historique / Obsolescence -->
                         <td class="px-5 py-4 hidden lg:table-cell">
-                            <span class="text-xs text-gray-400">{{ item.ModifiedDate[:10] if item.ModifiedDate else "—" }}</span>
+                            <div class="text-[11px] space-y-0.5">
+                                <p class="text-gray-600 dark:text-gray-300">
+                                    <span class="text-gray-400">Dernière consult. :</span>
+                                    <span class="font-medium {% if not item.LastConsultation %}text-amber-600{% endif %}">
+                                        {{ item.LastConsultation[:10] if item.LastConsultation else "Jamais ouvert" }}
+                                    </span>
+                                </p>
+                                <p class="text-gray-400">
+                                    <span>Modifié :</span> {{ item.ModifiedDate[:10] if item.ModifiedDate else "—" }}
+                                </p>
+                            </div>
                         </td>
                         <!-- Actions -->
                         <td class="px-5 py-4">

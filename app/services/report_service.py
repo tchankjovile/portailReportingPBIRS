@@ -78,11 +78,14 @@ class ReportService:
         db: AsyncSession,
         department: Optional[str] = None,
         search_query: Optional[str] = None,
-        user_upn: Optional[str] = None
+        user_upn: Optional[str] = None,
+        allowed_departments: Optional[List[str]] = None,
+        user: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
-        """Fetches reports with user favorite flags and department filtering."""
+        """Fetches reports with user favorite flags, PBIRS security policies and department access control."""
         query = select(Report)
 
+        # Filtre par département sélectionné par l'utilisateur dans l'interface
         if department and department != "Tous":
             query = query.where(Report.department == department)
 
@@ -107,8 +110,47 @@ class ReportService:
             fav_result = await db.execute(select(Favorite.report_id).where(Favorite.user_upn == user_upn))
             user_fav_ids = set(fav_result.scalars().all())
 
+        # Vérification des droits PBIRS de l'utilisateur
+        is_super = False
+        user_groups = []
+        user_name = ""
+        if user:
+            from app.auth.security import is_admin
+            is_super = is_admin(user) or user.get("department") in ["Direction Générale", "Data & Business Intelligence"]
+            user_groups = [g.upper().strip() for g in user.get("groups", [])]
+            user_name = user.get("username", "").upper().strip()
+
         output = []
         for r in reports:
+            # Si l'utilisateur n'a pas les droits totaux, filtrer selon ses permissions PBIRS
+            if user and not is_super:
+                has_access = False
+                tags_str = r.tags or ""
+                
+                # 1. Vérifier si un groupe AD de l'utilisateur a été autorisé dans PBIRS (Explorateur, etc.)
+                if "ALLOWED:" in tags_str:
+                    allowed_part = tags_str.split("ALLOWED:", 1)[1]
+                    allowed_principals = [x.strip().upper() for x in allowed_part.split(",") if x.strip()]
+                    if any(g in allowed_principals for g in user_groups):
+                        has_access = True
+                    elif user_name and user_name in allowed_principals:
+                        has_access = True
+
+                # 2. Vérifier si le département du rapport fait partie des départements autorisés
+                if not has_access and allowed_departments:
+                    if r.department in allowed_departments:
+                        has_access = True
+
+                # Si l'utilisateur n'a aucun droit sur ce rapport/dossier, on l'exclut
+                if not has_access:
+                    continue
+
+            # Nettoyer les tags pour ne pas afficher la chaîne interne ALLOWED dans les badges de l'UI
+            display_tags = []
+            if r.tags:
+                clean_tag_str = r.tags.split("ALLOWED:")[0].strip().rstrip("|").strip()
+                display_tags = [t.strip() for t in clean_tag_str.split(",") if t.strip()]
+
             output.append({
                 "id": r.id,
                 "pbirs_id": r.pbirs_id,
@@ -117,7 +159,7 @@ class ReportService:
                 "description": r.description,
                 "category": r.category,
                 "department": r.department,
-                "tags": r.tags.split(",") if r.tags else [],
+                "tags": display_tags,
                 "embed_url": r.embed_url,
                 "view_count": r.view_count,
                 "is_featured": r.is_featured,
@@ -252,8 +294,11 @@ class ReportService:
 
     async def get_departments_list(self, db: AsyncSession) -> List[str]:
         result = await db.execute(select(Report.department).distinct())
-        departments = [row[0] for row in result.all() if row[0]]
-        return ["Tous"] + sorted(departments)
+        db_departments = [row[0] for row in result.all() if row[0]]
+        # Inclure les pôles & métiers officiels définis dans la hiérarchie BICEC
+        hierarchy_depts = [k for k in settings.get_dept_hierarchy().keys() if k != "Général"]
+        all_departments = sorted(list(set(db_departments + hierarchy_depts)))
+        return ["Tous"] + all_departments
 
     async def submit_anomaly(
         self,

@@ -74,7 +74,7 @@ MOCK_REPORTSERVER_CATALOG = [
 def _get_sqlserver_connection():
     """
     Retourne une connexion pyodbc vers la base ReportServer SQL Server.
-    Lève une exception si la connexion échoue (gérée par le appelant).
+    Détecte automatiquement le driver ODBC le plus adapté disponible sur le système.
     """
     import pyodbc
 
@@ -84,23 +84,44 @@ def _get_sqlserver_connection():
     password = settings.REPORTSERVER_SQL_PASSWORD
     trusted  = settings.REPORTSERVER_TRUSTED_CONN
 
-    if trusted:
-        conn_str = (
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"Trusted_Connection=yes;"
-        )
-    else:
-        conn_str = (
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={server};"
-            f"DATABASE={database};"
-            f"UID={username};"
-            f"PWD={password};"
-        )
+    # Trouver le meilleur driver ODBC installé
+    installed = pyodbc.drivers()
+    candidates = [
+        "ODBC Driver 18 for SQL Server",
+        "ODBC Driver 17 for SQL Server",
+        "ODBC Driver 13 for SQL Server",
+        "SQL Server Native Client 11.0",
+        "SQL Server"
+    ]
+    driver = "SQL Server"
+    for cand in candidates:
+        if cand in installed:
+            driver = cand
+            break
 
-    return pyodbc.connect(conn_str, timeout=5)
+    logger.info(f"Connexion SQL Server vers {server}/{database} via driver '{driver}'")
+
+    parts = [
+        f"DRIVER={{{driver}}}",
+        f"SERVER={server}",
+        f"DATABASE={database}",
+    ]
+
+    # Tolérer les certificats auto-signés sur ODBC Driver 18 et 17
+    if "18" in driver:
+        parts.append("TrustServerCertificate=yes")
+        parts.append("Encrypt=Optional")
+    elif "17" in driver:
+        parts.append("TrustServerCertificate=yes")
+
+    if trusted or not username:
+        parts.append("Trusted_Connection=yes")
+    else:
+        parts.append(f"UID={username}")
+        parts.append(f"PWD={password}")
+
+    conn_str = ";".join(parts)
+    return pyodbc.connect(conn_str, timeout=8)
 
 
 # ---------------------------------------------------------------------------
@@ -111,6 +132,10 @@ def get_catalog_from_reportserver() -> List[Dict[str, Any]]:
     """
     Lit la table Catalog de la base ReportServer SQL Server.
     Retourne tous les rapports (visibles ET cachés).
+    Prend en compte :
+      - Type 13 : Rapports Power BI (.pbix)
+      - Type 2  : Rapports paginés (.rdl)
+      - Type 5  : Modèles Power BI Desktop
     En cas d'échec de connexion : retourne les données fictives si REPORTSERVER_MOCK_MODE=True.
     """
     if settings.REPORTSERVER_MOCK_MODE:
@@ -122,21 +147,30 @@ def get_catalog_from_reportserver() -> List[Dict[str, Any]]:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT
-                CAST(ItemID AS VARCHAR(50)) AS ItemID,
-                Name,
-                Path,
-                Type,
-                CAST(Hidden AS BIT) AS Hidden,
-                CONVERT(VARCHAR(30), ModifiedDate, 120) AS ModifiedDate,
-                (SELECT UserName FROM Users u WHERE u.UserID = c.CreatedByID) AS CreatedBy
+                CAST(c.ItemID AS VARCHAR(50)) AS ItemID,
+                c.Name,
+                c.Path,
+                c.Type,
+                CAST(c.Hidden AS BIT) AS Hidden,
+                CONVERT(VARCHAR(30), c.CreationDate, 120) AS CreationDate,
+                CONVERT(VARCHAR(30), c.ModifiedDate, 120) AS ModifiedDate,
+                (SELECT UserName FROM Users u WHERE u.UserID = c.CreatedByID) AS CreatedBy,
+                (
+                    SELECT CONVERT(VARCHAR(30), MAX(el.TimeStart), 120)
+                    FROM ExecutionLogStorage el 
+                    WHERE el.ReportID = c.ItemID AND el.RequestType = 0
+                ) AS LastConsultation
             FROM Catalog c
-            WHERE Type IN (2, 5)
-            ORDER BY Hidden DESC, Path ASC
+            WHERE c.Type IN (2, 5, 13)
+            ORDER BY c.Hidden DESC, c.Path ASC
         """)
         columns = [col[0] for col in cursor.description]
         rows = cursor.fetchall()
         conn.close()
-        return [dict(zip(columns, row)) for row in rows]
+
+        results = [dict(zip(columns, row)) for row in rows]
+        logger.info(f"ReportServer SQL Server : {len(results)} rapports récupérés.")
+        return results
     except Exception as e:
         logger.error(f"Erreur connexion ReportServer SQL Server: {e}")
         if settings.REPORTSERVER_MOCK_MODE:
@@ -146,11 +180,14 @@ def get_catalog_from_reportserver() -> List[Dict[str, Any]]:
 
 def unhide_report_in_reportserver(item_id: str) -> bool:
     """
-    Démasque un rapport dans la base ReportServer en mettant Hidden = 0.
-    Retourne True si succès, False sinon.
+    Démasque un rapport dans la base ReportServer de façon pérenne :
+    1. Met Hidden = 0 dans Catalog.
+    2. Met à jour ModifiedDate = GETDATE() dans Catalog (réinitialise le compteur d'obsolescence).
+    3. Met à jour TimeStart = GETDATE() dans ExecutionLogStorage pour la dernière consultation,
+       ce qui empêche la procédure SQL Agent `sp_PurgeMasquageRapportsObsolescents`
+       de re-masquer immédiatement le rapport lors de son prochain passage automatique !
     """
     if settings.REPORTSERVER_MOCK_MODE:
-        # Simuler le démasquage sur les données fictives
         for item in MOCK_REPORTSERVER_CATALOG:
             if item["ItemID"] == item_id:
                 item["Hidden"] = False
@@ -161,14 +198,36 @@ def unhide_report_in_reportserver(item_id: str) -> bool:
     try:
         conn = _get_sqlserver_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE Catalog SET Hidden = 0 WHERE ItemID = ?",
-            item_id
-        )
+
+        # 1. Démasquer dans Catalog et actualiser ModifiedDate à NOW
+        cursor.execute("""
+            UPDATE Catalog 
+            SET Hidden = 0,
+                ModifiedDate = GETDATE()
+            WHERE ItemID = ?
+        """, item_id)
         rows_affected = cursor.rowcount
+
+        # 2. Mettre à jour l'entrée ExecutionLogStorage la plus récente pour ce rapport
+        # Cela garantit que MAX(TimeStart) >= DATEADD(MONTH, -12, GETDATE())
+        try:
+            cursor.execute("""
+                UPDATE ExecutionLogStorage
+                SET TimeStart = GETDATE()
+                WHERE ReportID = ?
+                  AND RequestType = 0
+                  AND TimeStart = (
+                      SELECT MAX(sub.TimeStart)
+                      FROM ExecutionLogStorage sub
+                      WHERE sub.ReportID = ? AND sub.RequestType = 0
+                  )
+            """, (item_id, item_id))
+        except Exception as e_log:
+            logger.warning(f"Note: ExecutionLogStorage non mis à jour ({e_log})")
+
         conn.commit()
         conn.close()
-        logger.info(f"Rapport démasqué dans ReportServer (ItemID={item_id}), {rows_affected} ligne(s) modifiée(s).")
+        logger.info(f"Rapport démasqué et réactivé dans ReportServer (ItemID={item_id}), {rows_affected} ligne(s) modifiée(s).")
         return rows_affected > 0
     except Exception as e:
         logger.error(f"Erreur lors du démasquage du rapport {item_id}: {e}")

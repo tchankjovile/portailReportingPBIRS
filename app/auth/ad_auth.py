@@ -88,31 +88,129 @@ class ActiveDirectoryClient:
                 "is_authenticated": True
             }
 
-        # Live LDAP binding logic against Active Directory Domain Controller
+        # Live Windows Native Authentication against Active Directory
         try:
-            from ldap3 import Server, Connection, SIMPLE, SYNC, ALL
-            server = Server(settings.AD_LDAP_SERVER, get_info=ALL)
-            user_dn = f"{clean_user}@{settings.AD_DOMAIN}"
-            conn = Connection(server, user=user_dn, password=password, authentication=SIMPLE, check_names=True, lazy=False)
+            import win32security
             
-            if conn.bind():
-                conn.unbind()
-                return DEMO_AD_USERS.get(clean_user, {
-                    "upn": user_dn,
-                    "username": clean_user,
-                    "display_name": clean_user.upper(),
-                    "title": "Employé BICEC",
-                    "department": "Général",
-                    "email": user_dn,
-                    "agency": "BICEC",
-                    "role": "Employé",
-                    "groups": ["BICEC-USERS"],
-                    "dax_security_key": "DEFAULT",
-                    "is_authenticated": True
-                })
+            # LogonUser vérifie les credentials directement via l'OS Windows
+            token = win32security.LogonUser(
+                clean_user,
+                settings.AD_DOMAIN,
+                password,
+                win32security.LOGON32_LOGON_NETWORK,
+                win32security.LOGON32_PROVIDER_DEFAULT
+            )
+            
+            # Récupérer les groupes AD réels :
+            # 1. Directement depuis le jeton de sécurité Windows de l'utilisateur (méthode la plus fiable)
+            ad_groups = _get_groups_from_token(token)
+            
+            # 2. Compléter via win32net si disponible
+            if not ad_groups:
+                ad_groups = _get_user_ad_groups(clean_user, settings.AD_DOMAIN)
+            
+            logger.info(f"Groupes AD réels détectés pour '{clean_user}' : {ad_groups}")
+            
+            # Mapper les groupes AD techniques → départements PBIRS (insensible à la casse)
+            group_map = settings.get_group_map()
+            group_map_upper = {k.strip().upper(): v for k, v in group_map.items()}
+            
+            user_departments = []
+            for g in ad_groups:
+                g_clean = g.strip().upper()
+                if g_clean in group_map_upper:
+                    dept = group_map_upper[g_clean]
+                    if dept not in user_departments:
+                        user_departments.append(dept)
+            
+            # Si aucun département mappé, attribuer "Général"
+            if not user_departments:
+                user_departments = ["Général"]
+            
+            # Calculer les départements accessibles (hiérarchie)
+            allowed_departments = settings.get_allowed_departments(user_departments)
+            logger.info(f"Départements autorisés pour '{clean_user}' : {allowed_departments}")
+            
+            # Construire le profil utilisateur
+            user_dn = f"{clean_user}@{settings.AD_DOMAIN}"
+            primary_dept = user_departments[0] if user_departments else "Général"
+            
+            base_profile = DEMO_AD_USERS.get(clean_user, {
+                "upn": user_dn,
+                "username": clean_user,
+                "display_name": clean_user.upper(),
+                "title": f"Collaborateur {primary_dept}",
+                "email": user_dn,
+                "agency": "BICEC",
+                "role": "Collaborateur",
+                "dax_security_key": "DEFAULT",
+            })
+            
+            # Mettre à jour avec les informations dynamiques de l'AD
+            base_profile.update({
+                "department": primary_dept,
+                "groups": ad_groups,
+                "user_departments": user_departments,
+                "allowed_departments": allowed_departments,
+                "is_authenticated": True
+            })
+            return base_profile
+
         except Exception as e:
-            logger.error(f"Active Directory LDAP bind failed: {e}")
+            logger.error(f"Active Directory native logon failed: {e}")
             
         return None
 
+
+def _get_groups_from_token(token) -> List[str]:
+    """
+    Extrait tous les groupes de sécurité Windows directement depuis le Token Handle
+    retourné par LogonUser. Fonctionne sur serveur membre sans accès administrateur SAM.
+    """
+    groups = []
+    try:
+        import win32security
+        token_groups = win32security.GetTokenInformation(token, win32security.TokenGroups)
+        for sid, _ in token_groups:
+            try:
+                name, domain, _ = win32security.LookupAccountSid(None, sid)
+                if name and name not in groups:
+                    groups.append(name)
+            except Exception:
+                pass
+    except Exception as e:
+        logger.warning(f"Erreur extraction groupes du token: {e}")
+    return groups
+
+
+def _get_user_ad_groups(username: str, domain: str) -> List[str]:
+    """
+    Récupère les groupes AD via win32net en interrogeant le Domain Controller.
+    """
+    try:
+        import win32net
+        groups = []
+        
+        # Interroger le DC du domaine
+        try:
+            dc = win32net.NetGetDCName(None, domain)
+            domain_groups, _, _ = win32net.NetUserGetGroups(dc, username)
+            groups.extend([g[0] for g in domain_groups if g[0] not in groups])
+        except Exception:
+            pass
+        
+        # Groupes locaux
+        try:
+            local_groups, _, _ = win32net.NetUserGetLocalGroups(None, username, 0)
+            groups.extend([g for g in local_groups if g not in groups])
+        except Exception:
+            pass
+        
+        return groups
+    except Exception as e:
+        logger.warning(f"win32net get groups failed: {e}")
+        return []
+
+
+# Singleton utilisé par les routers
 ad_client = ActiveDirectoryClient()

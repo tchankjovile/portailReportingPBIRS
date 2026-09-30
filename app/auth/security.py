@@ -55,13 +55,19 @@ def require_authenticated_user(request: Request) -> Dict[str, Any]:
 
 def is_admin(user: Optional[Dict[str, Any]]) -> bool:
     """
-    Retourne True si l'utilisateur appartient au groupe PBIRS-ADMINS.
-    Utilisé dans les templates Jinja2 et les gardes de routes.
+    Retourne True si l'utilisateur est administrateur :
+    - Appartient à l'un des groupes de settings.ADMIN_GROUPS (ex: Domain Admins, PBIRS-ADMINS)
+    - Ou est rattaché à la Direction Générale
     """
     if not user:
         return False
-    groups = user.get("groups", [])
-    return "PBIRS-ADMINS" in groups
+    user_groups = [g.upper() for g in user.get("groups", [])]
+    admin_groups = [g.upper() for g in getattr(settings, "ADMIN_GROUPS", ["PBIRS-ADMINS", "Domain Admins", "Administrators"])]
+    if any(ag in user_groups for ag in admin_groups):
+        return True
+    if user.get("department") in ["Direction Générale", "Data & Business Intelligence"]:
+        return True
+    return False
 
 
 def require_admin(request: Request) -> Dict[str, Any]:

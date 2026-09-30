@@ -5,6 +5,7 @@ from app.db.database import get_db
 from app.auth.security import require_authenticated_user, is_admin
 from app.services.report_service import report_service
 from app.templates_env import templates
+from app.config import settings
 
 router = APIRouter(tags=["Pages"])
 
@@ -13,16 +14,56 @@ def _redirect_login():
     return RedirectResponse(url="/login", status_code=302)
 
 
+SUPER_DEPARTMENTS = ["Direction Générale", "Data & Business Intelligence"]
+
+
+def _get_user_allowed_depts(user: dict, all_departments: list, admin: bool) -> list:
+    """
+    Retourne la liste des départements que l'utilisateur peut voir dans la sidebar.
+    - Admin, Direction Générale ou Data & BI → tous les pôles de la banque
+    - Collaborateur → uniquement son pôle et tous ses sous-pôles
+    """
+    if admin or user.get("department") in SUPER_DEPARTMENTS:
+        return all_departments
+
+    allowed = user.get("allowed_departments", [])
+    if not allowed:
+        dept = user.get("department", "Général")
+        allowed = settings.get_allowed_departments([dept])
+
+    # Filtrer les départements autorisés tout en préservant l'affichage
+    visible = [d for d in all_departments if d in allowed and d != "Tous"]
+    if not visible:
+        visible = [d for d in allowed if d != "Tous"]
+    return ["Tous"] + visible
+
+
 @router.get("/", response_class=HTMLResponse)
 async def home_dashboard(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     user = require_authenticated_user(request)
+    admin = is_admin(user)
+    is_super = admin or user.get("department") in SUPER_DEPARTMENTS
+    
     await report_service.sync_catalog_if_empty(db)
-    reports = await report_service.get_all_reports(db, user_upn=user.get("upn"))
+    all_depts = await report_service.get_departments_list(db)
+    visible_depts = _get_user_allowed_depts(user, all_depts, admin)
+
+    reports = await report_service.get_all_reports(
+        db,
+        user_upn=user.get("upn"),
+        allowed_departments=None if is_super else visible_depts,
+        user=user
+    )
+    # Ajouter à la sidebar les dossiers PBIRS autorisés pour l'utilisateur
+    report_depts = {r["department"] for r in reports if r.get("department") and r.get("department") != "Général"}
+    for rd in report_depts:
+        if rd not in visible_depts:
+            visible_depts.append(rd)
+
     favorites = await report_service.get_user_favorites(db, user.get("upn"))
-    departments = await report_service.get_departments_list(db)
     featured_reports = [r for r in reports if r.get("is_featured")]
 
     return templates.TemplateResponse(
@@ -33,9 +74,9 @@ async def home_dashboard(
             "reports": reports,
             "featured_reports": featured_reports,
             "favorites": favorites,
-            "departments": departments,
+            "departments": visible_depts,
             "active_page": "dashboard",
-            "is_admin": is_admin(user),
+            "is_admin": admin,
         }
     )
 
@@ -48,9 +89,26 @@ async def catalog_page(
     db: AsyncSession = Depends(get_db)
 ):
     user = require_authenticated_user(request)
+    admin = is_admin(user)
+    is_super = admin or user.get("department") in SUPER_DEPARTMENTS
+
     await report_service.sync_catalog_if_empty(db)
-    reports = await report_service.get_all_reports(db, department=dept, search_query=q, user_upn=user.get("upn"))
-    departments = await report_service.get_departments_list(db)
+    all_depts = await report_service.get_departments_list(db)
+    visible_depts = _get_user_allowed_depts(user, all_depts, admin)
+
+    reports = await report_service.get_all_reports(
+        db,
+        department=dept,
+        search_query=q,
+        user_upn=user.get("upn"),
+        allowed_departments=None if is_super else visible_depts,
+        user=user
+    )
+    # Ajouter à la sidebar les dossiers PBIRS autorisés pour l'utilisateur
+    report_depts = {r["department"] for r in reports if r.get("department") and r.get("department") != "Général"}
+    for rd in report_depts:
+        if rd not in visible_depts:
+            visible_depts.append(rd)
 
     return templates.TemplateResponse(
         "pages/catalog.html",
@@ -58,11 +116,11 @@ async def catalog_page(
             "request": request,
             "user": user,
             "reports": reports,
-            "departments": departments,
+            "departments": visible_depts,
             "selected_dept": dept,
             "search_query": q,
             "active_page": "catalog",
-            "is_admin": is_admin(user),
+            "is_admin": admin,
         }
     )
 
