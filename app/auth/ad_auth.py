@@ -110,48 +110,39 @@ class ActiveDirectoryClient:
                 ad_groups = _get_user_ad_groups(clean_user, settings.AD_DOMAIN)
             
             logger.info(f"Groupes AD réels détectés pour '{clean_user}' : {ad_groups}")
-            
-            # Mapper les groupes AD techniques → départements PBIRS (insensible à la casse)
-            group_map = settings.get_group_map()
-            group_map_upper = {k.strip().upper(): v for k, v in group_map.items()}
-            
-            user_departments = []
-            for g in ad_groups:
-                g_clean = g.strip().upper()
-                if g_clean in group_map_upper:
-                    dept = group_map_upper[g_clean]
-                    if dept not in user_departments:
-                        user_departments.append(dept)
-            
-            # Si aucun département mappé, attribuer "Général"
-            if not user_departments:
-                user_departments = ["Général"]
-            
-            # Calculer les départements accessibles (hiérarchie)
-            allowed_departments = settings.get_allowed_departments(user_departments)
-            logger.info(f"Départements autorisés pour '{clean_user}' : {allowed_departments}")
-            
+
+            # Identifier le groupe métier principal en ignorant les groupes techniques Windows par défaut
+            ignored_groups = {
+                "DOMAIN USERS", "UTILISATEURS DU DOMAINE", "EVERYONE", "TOUT LE MONDE",
+                "USERS", "UTILISATEURS", "AUTHENTICATED USERS", "UTILISATEURS AUTHENTIFIES"
+            }
+            business_groups = [
+                g.split("\\")[-1].strip()
+                for g in ad_groups
+                if g.split("\\")[-1].strip().upper() not in ignored_groups
+            ]
+            primary_ad_group = business_groups[0] if business_groups else (ad_groups[0].split("\\")[-1].strip() if ad_groups else "Utilisateur")
+
+            logger.info(f"Groupe AD principal attribué pour '{clean_user}' : {primary_ad_group}")
+
             # Construire le profil utilisateur
             user_dn = f"{clean_user}@{settings.AD_DOMAIN}"
-            primary_dept = user_departments[0] if user_departments else "Général"
-            
             base_profile = DEMO_AD_USERS.get(clean_user, {
                 "upn": user_dn,
                 "username": clean_user,
                 "display_name": clean_user.upper(),
-                "title": f"Collaborateur {primary_dept}",
+                "title": f"Groupe AD : {primary_ad_group}",
                 "email": user_dn,
                 "agency": "BICEC",
                 "role": "Collaborateur",
                 "dax_security_key": "DEFAULT",
             })
             
-            # Mettre à jour avec les informations dynamiques de l'AD
+            # Mettre à jour avec les informations dynamiques réelles de l'AD (sans table de correspondance)
             base_profile.update({
-                "department": primary_dept,
+                "department": primary_ad_group,
+                "ad_group": primary_ad_group,
                 "groups": ad_groups,
-                "user_departments": user_departments,
-                "allowed_departments": allowed_departments,
                 "is_authenticated": True
             })
             return base_profile

@@ -14,7 +14,7 @@ class Report(Base):
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=False, index=True)
     department = Column(String(100), nullable=False, index=True)
-    tags = Column(String(255), nullable=True)
+    tags = Column(Text, nullable=True)
     embed_url = Column(String(500), nullable=True)
     view_count = Column(Integer, default=0)
     is_featured = Column(Boolean, default=False)
@@ -23,7 +23,7 @@ class Report(Base):
 
     favorites = relationship("Favorite", back_populates="report", cascade="all, delete-orphan")
     history_entries = relationship("ReportHistory", back_populates="report", cascade="all, delete-orphan")
-    anomalies = relationship("AnomalyReport", back_populates="report", cascade="all, delete-orphan")
+    anomalies = relationship("AnomalyReport", back_populates="report")
 
 
 class Favorite(Base):

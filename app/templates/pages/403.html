@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Accès non autorisé | Portail PBIRS BICEC{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+    <div class="bg-white dark:bg-gray-800 rounded-3xl p-8 md:p-10 border border-gray-200 dark:border-gray-700 shadow-xl text-center space-y-6">
+        
+        <!-- Icone de sécurité -->
+        <div class="w-20 h-20 mx-auto rounded-3xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center shadow-inner">
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        </div>
+
+        <!-- Titre et Explications -->
+        <div class="space-y-2">
+            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+                Sécurité PBIRS &middot; Code 403
+            </span>
+            <h1 class="text-2xl md:text-3xl font-heading font-black text-gray-900 dark:text-white">
+                Accès non autorisé
+            </h1>
+            <p class="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto">
+                Votre compte Active Directory ou votre groupe ne dispose pas des privilèges nécessaires sur le serveur PBIRS pour consulter ce rapport.
+            </p>
+        </div>
+
+        <!-- Détails techniques sur l'élément restreint -->
+        <div class="bg-gray-50 dark:bg-gray-900/60 rounded-2xl p-4 text-left border border-gray-100 dark:border-gray-700 space-y-2 text-xs">
+            <div class="flex items-center justify-between py-1 border-b border-gray-200 dark:border-gray-800">
+                <span class="text-gray-400">Rapport :</span>
+                <span class="font-bold text-gray-800 dark:text-gray-200 font-mono">{{ report_name }}</span>
+            </div>
+            {% if folder_name %}
+            <div class="flex items-center justify-between py-1 border-b border-gray-200 dark:border-gray-800">
+                <span class="text-gray-400">Espace / Dossier PBIRS :</span>
+                <span class="font-bold text-bicec-orange font-mono">{{ folder_name }}</span>
+            </div>
+            {% endif %}
+            <div class="flex items-center justify-between py-1">
+                <span class="text-gray-400">Utilisateur connecté :</span>
+                <span class="font-bold text-gray-800 dark:text-gray-200 font-mono">{{ user.upn if user else 'Inconnu' }}</span>
+            </div>
+        </div>
+
+        <p class="text-xs text-gray-400 dark:text-gray-500">
+            Pour demander l'accès à cet espace de reporting, veuillez vous rapprocher de l'équipe <strong>Data & Business Intelligence</strong> ou de l'administrateur de votre pôle.
+        </p>
+
+        <!-- Actions -->
+        <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a href="/" 
+               class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gradient-to-r from-bicec-orange to-amber-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-orange-500/20 hover:scale-[1.02] transition-transform">
+                Retour au tableau de bord
+            </a>
+            <a href="/catalog" 
+               class="w-full sm:w-auto px-6 py-3 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold text-xs uppercase tracking-wider hover:bg-gray-200 transition-colors">
+                Explorer les rapports autorisés
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

@@ -157,7 +157,8 @@ class PBIRSClient:
                 item_path = item.get("Path", "")
                 principals = set()
 
-                # 1. Vérifier si le rapport a ses propres Policies
+                # 1. Vérifier si le rapport a ses propres Policies non-héritées
+                has_custom_policy = False
                 try:
                     p_resp = session.get(f"{settings.PBIRS_API_URL}/CatalogItems({item_id})/Policies", timeout=4)
                     if p_resp.status_code == 200:
@@ -169,12 +170,16 @@ class PBIRSClient:
                             if cname:
                                 principals.add(cname)
                         if not inherit and principals:
-                            item["allowed_principals"] = list(principals)
-                            continue
+                            item["allowed_principals"] = sorted(list(principals))
+                            has_custom_policy = True
                 except Exception:
                     pass
 
-                # 2. Si le rapport hérite, interroger les Policies de son dossier parent
+                if has_custom_policy:
+                    logger.info(f"Sécurité PBIRS (propre) pour '{item.get('Name')}' : autorisés = {item.get('allowed_principals')}")
+                    continue
+
+                # 2. Si le rapport hérite, interroger les Policies de son dossier parent PBIRS
                 clean_parts = [p for p in item_path.strip("/").split("/") if p]
                 if len(clean_parts) > 1:
                     parent_folder = clean_parts[0]
@@ -195,26 +200,27 @@ class PBIRSClient:
                                 principals.update(f_principals)
                         except Exception:
                             folder_policies_cache[parent_folder] = []
+                    # NE PAS fusionner la racine "/" pour les sous-dossiers : seuls les droits du dossier font foi
+                    item["allowed_principals"] = sorted(list(principals))
+                else:
+                    # Rapport situé directement à la racine "/"
+                    if "/" not in folder_policies_cache:
+                        try:
+                            r_resp = session.get(f"{settings.PBIRS_API_URL}/Folders(Path='/')/Policies", timeout=4)
+                            if r_resp.status_code == 200:
+                                r_data = r_resp.json()
+                                r_principals = set()
+                                for pol in r_data.get("Policies", []):
+                                    gun = pol.get("GroupUserName", "")
+                                    cname = gun.split("\\")[-1].strip().upper()
+                                    if cname:
+                                        r_principals.add(cname)
+                                folder_policies_cache["/"] = list(r_principals)
+                        except Exception:
+                            folder_policies_cache["/"] = []
+                    item["allowed_principals"] = sorted(list(folder_policies_cache.get("/", [])))
 
-                # 3. Interroger la racine "/" si besoin
-                if "/" not in folder_policies_cache:
-                    try:
-                        r_resp = session.get(f"{settings.PBIRS_API_URL}/Folders(Path='/')/Policies", timeout=4)
-                        if r_resp.status_code == 200:
-                            r_data = r_resp.json()
-                            r_principals = set()
-                            for pol in r_data.get("Policies", []):
-                                gun = pol.get("GroupUserName", "")
-                                cname = gun.split("\\")[-1].strip().upper()
-                                if cname:
-                                    r_principals.add(cname)
-                            folder_policies_cache["/"] = list(r_principals)
-                    except Exception:
-                        folder_policies_cache["/"] = []
-
-                principals.update(folder_policies_cache.get("/", []))
-                item["allowed_principals"] = list(principals)
-                logger.info(f"Sécurité PBIRS pour '{item.get('Name')}' : autorisés = {list(principals)}")
+                logger.info(f"Sécurité PBIRS pour '{item.get('Name')}' ({item_path}) : autorisés = {item.get('allowed_principals')}")
 
             logger.info(f"PBIRS SSPI — {len(all_items)} rapports au total avec politiques de sécurité.")
             return all_items
@@ -244,21 +250,46 @@ class PBIRSClient:
                 logger.info("Fallback sur les données de démonstration BICEC.")
                 return INITIAL_BICEC_CATALOG
 
-            # Interroger la base ReportServer SQL Server pour identifier les rapports masqués (Hidden = 1)
+            # Interroger la base ReportServer SQL Server pour identifier :
+            # 1. Les rapports masqués (Hidden = 1)
+            # 2. Les autorisations exactes par ItemID (PolicyID -> PolicyUserRole -> Users)
             hidden_item_ids = set()
+            sql_security_map = {}  # ItemID (lowercase) -> set of allowed principals (uppercase)
             try:
                 if not settings.REPORTSERVER_MOCK_MODE:
                     from app.services.admin_service import _get_sqlserver_connection
                     conn = _get_sqlserver_connection()
                     cursor = conn.cursor()
+
+                    # 1. Rapports masqués
                     cursor.execute("SELECT LOWER(CAST(ItemID AS VARCHAR(50))) FROM Catalog WHERE Hidden = 1")
                     for row in cursor.fetchall():
                         if row[0]:
                             hidden_item_ids.add(row[0].strip().lower())
+
+                    # 2. Permissions effectives par rapport
+                    cursor.execute("""
+                        SELECT 
+                            LOWER(CAST(c.ItemID AS VARCHAR(50))),
+                            u.UserName
+                        FROM Catalog c
+                        JOIN Policies p ON c.PolicyID = p.PolicyID
+                        JOIN PolicyUserRole pur ON p.PolicyID = pur.PolicyID
+                        JOIN Users u ON pur.UserID = u.UserID
+                    """)
+                    for row in cursor.fetchall():
+                        if row[0] and row[1]:
+                            iid = str(row[0]).strip().lower()
+                            uname = str(row[1]).split("\\")[-1].strip().upper()
+                            if uname:
+                                if iid not in sql_security_map:
+                                    sql_security_map[iid] = set()
+                                sql_security_map[iid].add(uname)
+
                     conn.close()
-                    logger.info(f"ReportServer SQL Server : {len(hidden_item_ids)} rapport(s) masqué(s) (Hidden=1) détecté(s).")
+                    logger.info(f"ReportServer SQL Server : {len(hidden_item_ids)} rapport(s) masqué(s), {len(sql_security_map)} avec permissions directes.")
             except Exception as e_sql:
-                logger.warning(f"Vérification SQL Server des rapports masqués : {e_sql}")
+                logger.warning(f"Vérification SQL Server des rapports : {e_sql}")
 
             reports = []
             for item in items:
@@ -277,15 +308,19 @@ class PBIRSClient:
 
                 path = item.get("Path", "")
                 
-                # Extraire le dossier parent comme Département/Pôle
+                # Extraire le premier niveau de dossier PBIRS comme Espace/Dossier
                 clean_parts = [p for p in path.strip("/").split("/") if p]
                 if len(clean_parts) > 1:
-                    category = clean_parts[0]  # Nom du dossier parent dans PBIRS
+                    category = clean_parts[0]  # Nom du dossier parent PBIRS (ex: 01_Conception, 02_Recette, 03_Production)
                 else:
                     category = "Général"       # Rapport situé à la racine
 
-                # Grouper les entités AD autorisées par PBIRS
-                allowed_principals = item.get("allowed_principals", [])
+                # Priorité aux autorisations ReportServer SQL Server si disponibles, sinon REST API
+                if item_id_clean in sql_security_map:
+                    allowed_principals = sorted(list(sql_security_map[item_id_clean]))
+                else:
+                    allowed_principals = item.get("allowed_principals", [])
+
                 allowed_tag = f" | ALLOWED:{','.join(allowed_principals)}" if allowed_principals else ""
 
                 reports.append({

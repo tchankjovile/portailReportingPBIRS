@@ -11,6 +11,7 @@ from app.services.admin_service import (
     get_catalog_from_reportserver,
     unhide_report_in_reportserver,
     get_all_anomalies,
+    get_anomaly_by_id,
     update_anomaly_status,
     delete_report_from_portal,
     get_admin_stats,
@@ -26,12 +27,16 @@ async def admin_dashboard(
     request: Request,
     db: AsyncSession = Depends(get_db)
 ):
-    """Tableau de bord administrateur avec KPIs."""
+    """Tableau de bord administrateur avec KPIs et alertes d'anomalies."""
     user = require_admin(request)
     stats = await get_admin_stats(db)
-    # Derniers signalements (5 plus récents, non résolus en priorité)
-    recent_anomalies = await get_all_anomalies(db, status_filter=None)
-    recent_anomalies = recent_anomalies[:5]
+    
+    # Récupérer les signalements et prioriser les nouveaux et en traitement
+    all_anomalies = await get_all_anomalies(db, status_filter=None)
+    priority_order = {"nouveau": 0, "en_traitement": 1, "résolu": 2}
+    all_anomalies.sort(key=lambda a: (priority_order.get(a.get("status", ""), 3)))
+    recent_anomalies = all_anomalies[:5]
+
     departments = await report_service.get_departments_list(db)
 
     return templates.TemplateResponse(
@@ -190,19 +195,133 @@ async def update_anomaly(
     admin_comment: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
-    """Met à jour le statut d'un signalement d'anomalie."""
+    """Met à jour le statut d'un signalement d'anomalie et réaffiche la carte mise à jour."""
     user = require_admin(request)
 
+    clean_status = new_status.strip().lower()
+    valid_statuses = ["nouveau", "en_traitement", "résolu"]
+    if clean_status not in valid_statuses:
+        raise HTTPException(status_code=400, detail="Statut invalide")
+
+    resolver_name = user.get("display_name") or user.get("upn", "")
+
+    await update_anomaly_status(
+        db=db,
+        anomaly_id=anomaly_id,
+        new_status=clean_status,
+        resolver_upn=resolver_name,
+        admin_comment=admin_comment.strip() or None
+    )
+
+    anomaly = await get_anomaly_by_id(db, anomaly_id)
+    if not anomaly:
+        raise HTTPException(status_code=404, detail="Anomalie introuvable")
+
+    stats = await get_admin_stats(db)
+
+    # Styles et icônes
+    status_classes = {
+        'nouveau': 'bg-red-100 text-red-700 border-red-200',
+        'en_traitement': 'bg-amber-100 text-amber-700 border-amber-200',
+        'résolu': 'bg-emerald-100 text-emerald-700 border-emerald-200'
+    }
+    status_icons = {'nouveau': '🔴', 'en_traitement': '🟡', 'résolu': '🟢'}
+    badge_css = status_classes.get(anomaly['status'], 'bg-gray-100 text-gray-700 border-gray-200')
+    badge_icon = status_icons.get(anomaly['status'], '⚪')
+    status_title = anomaly['status'].capitalize().replace('_', ' ')
+
+    resolved_meta = ""
+    if anomaly['status'] == 'résolu' and anomaly.get('resolved_by'):
+        resolved_meta = f'<span class="text-[11px] text-emerald-600 font-semibold">· Résolu par {anomaly["resolved_by"]} le {anomaly.get("resolved_at", "")}</span>'
+
+    admin_comment_html = ""
+    if anomaly.get('admin_comment'):
+        admin_comment_html = f'''
+        <div class="mt-2 p-2.5 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-100 dark:border-blue-900">
+            <p class="text-xs text-blue-700 dark:text-blue-300"><span class="font-semibold">Note admin :</span> {anomaly["admin_comment"]}</p>
+        </div>
+        '''
+
+    actions_html = '''
+        <span class="inline-flex items-center gap-1 text-xs text-emerald-600 font-bold px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200">
+            ✓ Clôturé
+        </span>
+    ''' if anomaly['status'] == 'résolu' else f'''
+        <button @click="formOpen = !formOpen"
+                class="px-3 py-1.5 rounded-lg text-xs font-bold bg-bicec-orange text-white hover:bg-bicec-orange-hover transition-colors whitespace-nowrap">
+            Traiter
+        </button>
+    '''
+
+    oob_counter = ""
+    if stats.get("anomalies_pending", 0) > 0:
+        oob_counter = f'''
+        <div id="anomalies-pending-counter" hx-swap-oob="true">
+            <div class="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <span class="text-sm font-bold text-red-700 dark:text-red-400">{stats["anomalies_pending"]} signalement(s) en attente</span>
+            </div>
+        </div>
+        '''
+    else:
+        oob_counter = '''
+        <div id="anomalies-pending-counter" hx-swap-oob="true"></div>
+        '''
+
+    return HTMLResponse(f"""
+    <div id="anomaly-item-{anomaly['id']}" class="p-5 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors" x-data="{{ expanded: false, formOpen: false }}">
+        <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap mb-1">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border {badge_css}">
+                        {badge_icon} {status_title}
+                    </span>
+                    <span class="text-xs font-mono text-gray-400">#{anomaly['id']}</span>
+                </div>
+                <h3 class="font-semibold text-sm text-gray-900 dark:text-white truncate">
+                    📊 {anomaly['report_name']}
+                </h3>
+                <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed">
+                    {anomaly['description']}
+                </p>
+                <div class="flex items-center gap-3 mt-2 flex-wrap">
+                    <span class="text-[11px] text-gray-400">
+                        👤 <span class="font-medium text-gray-600 dark:text-gray-300">{anomaly['user_name']}</span>
+                    </span>
+                    <span class="text-[11px] text-gray-400">· {anomaly['user_dept']}</span>
+                    <span class="text-[11px] text-gray-400">· {anomaly['created_at']}</span>
+                    {resolved_meta}
+                </div>
+                {admin_comment_html}
+            </div>
+            <div class="flex-shrink-0 flex flex-col gap-2">
+                {actions_html}
+            </div>
+        </div>
+    </div>
+    {oob_counter}
+    """)
+
+
+@router.post("/anomalies/{anomaly_id}/quick-status", response_class=HTMLResponse)
+async def quick_status_anomaly(
+    request: Request,
+    anomaly_id: int,
+    new_status: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Met à jour le statut en un clic depuis le dashboard."""
+    user = require_admin(request)
     valid_statuses = ["nouveau", "en_traitement", "résolu"]
     if new_status not in valid_statuses:
         raise HTTPException(status_code=400, detail="Statut invalide")
 
-    success = await update_anomaly_status(
+    await update_anomaly_status(
         db=db,
         anomaly_id=anomaly_id,
         new_status=new_status,
         resolver_upn=user.get("upn", ""),
-        admin_comment=admin_comment.strip() or None
+        admin_comment=None
     )
 
     status_labels = {
@@ -213,10 +332,7 @@ async def update_anomaly(
     css, label = status_labels.get(new_status, ("bg-gray-100 text-gray-700 border-gray-200", new_status))
 
     return HTMLResponse(f"""
-    <div class="flex items-center gap-2">
-        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border {css}">
-            {label}
-        </span>
-        <span class="text-xs text-gray-500">Mis à jour</span>
-    </div>
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border {css} shadow-sm animate-pulse">
+        {label}
+    </span>
     """)

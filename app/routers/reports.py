@@ -21,6 +21,27 @@ async def view_report(
     if not report:
         raise HTTPException(status_code=404, detail="Rapport non trouvé")
 
+    admin = is_admin(user)
+    is_super = admin
+
+    # Vérification stricte des autorisations PBIRS
+    if not is_super and not report_service.can_user_access_report(report, user):
+        all_user_reports = await report_service.get_all_reports(db, user_upn=user.get("upn"), user=user)
+        user_folders = sorted(list({r["department"] for r in all_user_reports if r.get("department") and r.get("department") != "Général"}))
+        return templates.TemplateResponse(
+            "pages/403.html",
+            {
+                "request": request,
+                "user": user,
+                "report_name": report.get("name"),
+                "folder_name": report.get("department"),
+                "departments": ["Tous"] + user_folders,
+                "active_page": "catalog",
+                "is_admin": admin,
+            },
+            status_code=403
+        )
+
     client_ip = request.client.host if request.client else "127.0.0.1"
     await report_service.log_view_event(db, report_id, user.get("upn"), client_ip)
 
@@ -30,7 +51,12 @@ async def view_report(
         user_session=user
     )
 
-    departments = await report_service.get_departments_list(db)
+    if is_super:
+        departments = await report_service.get_departments_list(db)
+    else:
+        all_user_reports = await report_service.get_all_reports(db, user_upn=user.get("upn"), user=user)
+        user_folders = sorted(list({r["department"] for r in all_user_reports if r.get("department") and r.get("department") != "Général"}))
+        departments = ["Tous"] + user_folders
 
     return templates.TemplateResponse(
         "pages/report_view.html",
@@ -41,7 +67,7 @@ async def view_report(
             "embed_url": rls_data["full_embed_url"],
             "departments": departments,
             "active_page": "catalog",
-            "is_admin": is_admin(user),
+            "is_admin": admin,
         }
     )
 
@@ -57,6 +83,18 @@ async def embed_partial(
     if not report:
         return HTMLResponse("<div class='p-4 text-red-600'>Erreur de chargement du rapport.</div>")
 
+    admin = is_admin(user)
+    is_super = admin
+
+    if not is_super and not report_service.can_user_access_report(report, user):
+        return HTMLResponse(
+            "<div class='p-6 text-center text-red-600 bg-red-50 dark:bg-gray-800 rounded-2xl border border-red-200 dark:border-red-900'>"
+            "<p class='font-bold text-base mb-1'>Accès refusé par les politiques de sécurité PBIRS</p>"
+            "<p class='text-xs text-gray-500'>Vous ne disposez pas des privilèges nécessaires sur ce dossier pour afficher ce rapport.</p>"
+            "</div>",
+            status_code=403
+        )
+
     rls_data = report_service.generate_dax_embed_url(
         base_embed_url=report["embed_url"],
         user_session=user
@@ -69,6 +107,6 @@ async def embed_partial(
             "report": report,
             "embed_url": rls_data["full_embed_url"],
             "user": user,
-            "is_admin": is_admin(user),
+            "is_admin": admin,
         }
     )

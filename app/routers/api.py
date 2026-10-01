@@ -1,3 +1,4 @@
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Request, Depends, Form, HTTPException, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,10 +64,10 @@ async def toggle_favorite_api(
 @router.post("/anomalies/submit", response_class=HTMLResponse)
 async def submit_anomaly(
     request: Request,
-    report_id: int = Form(...),
-    report_name: str = Form(...),
+    report_name: str = Form("Rapport"),
+    report_id: str = Form(None),
     report_path: str = Form(""),
-    description: str = Form(...),
+    description: str = Form(""),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -85,11 +86,15 @@ async def submit_anomaly(
         </div>
         """)
 
+    parsed_id = None
+    if report_id and str(report_id).strip().isdigit():
+        parsed_id = int(str(report_id).strip())
+
     await report_service.submit_anomaly(
         db=db,
-        report_id=report_id if report_id else None,
+        report_id=parsed_id,
         report_name=report_name,
-        report_path=report_path,
+        report_path=report_path or "",
         user_upn=user.get("upn", ""),
         user_name=user.get("display_name", ""),
         user_dept=user.get("department", ""),
@@ -97,14 +102,19 @@ async def submit_anomaly(
     )
 
     return HTMLResponse("""
-    <div id="anomaly-success" class="flex flex-col items-center gap-3 py-4 text-center">
+    <div id="anomaly-success" class="flex flex-col items-center gap-3 py-6 text-center">
         <div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
         </div>
-        <p class="font-bold text-gray-900 text-sm">Signalement envoyé avec succès</p>
-        <p class="text-xs text-gray-500">Notre équipe d'administration prendra en charge votre signalement dans les plus brefs délais.</p>
+        <div>
+            <p class="font-bold text-gray-900 text-sm">Signalement envoyé avec succès</p>
+            <p class="text-xs text-gray-500 mt-1 max-w-xs">Notre équipe d'administration prendra en charge votre signalement dans les plus brefs délais.</p>
+        </div>
+        <button @click="anomalyOpen = false" class="mt-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-xs font-semibold transition-colors">
+            Fermer
+        </button>
     </div>
     """)
 
@@ -165,4 +175,42 @@ async def switch_persona(persona_key: str):
         samesite="lax"
     )
     return redirect
+
+
+@router.get("/anomalies/count-badge", response_class=HTMLResponse)
+async def get_anomalies_count_badge(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Endpoint HTMX périodique (every 30s) pour afficher le badge rouge d'anomalies en attente
+    dans la barre latérale pour les administrateurs.
+    """
+    from app.auth.security import is_admin, get_current_user_from_request
+    from app.services.admin_service import get_admin_stats
+    
+    user = get_current_user_from_request(request)
+    if not user or not is_admin(user):
+        return HTMLResponse("")
+
+    stats = await get_admin_stats(db)
+    pending_count = stats.get("anomalies_nouveau", 0)
+
+    if pending_count > 0:
+        return HTMLResponse(f"""
+        <span id="sidebar-anomaly-badge"
+              hx-get="/api/anomalies/count-badge"
+              hx-trigger="every 30s"
+              hx-swap="outerHTML"
+              class="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-black bg-red-600 text-white rounded-full animate-pulse shadow-sm">
+            {pending_count}
+        </span>
+        """)
+    else:
+        return HTMLResponse("""
+        <span id="sidebar-anomaly-badge"
+              hx-get="/api/anomalies/count-badge"
+              hx-trigger="every 30s"
+              hx-swap="outerHTML"></span>
+        """)
 

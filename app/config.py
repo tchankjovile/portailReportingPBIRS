@@ -24,42 +24,19 @@ class Settings(BaseSettings):
     AD_LDAP_SERVER: str = "ldap://dc01.bicec.local"
     AD_ENABLE_DEV_MOCK: str = "true"
     
-    # Administration
-    ADMIN_GROUPS: List[str] = ["PBIRS-ADMINS", "Domain Admins", "Administrators"]
+    # -----------------------------------------------------------------------
+    # Groupes Active Directory disposant des droits Administrateur / Super-Utilisateur
+    # (Accès complet aux rapports, démasquage, anomalies, console admin)
+    # Configurable dans le fichier .env sous forme de liste séparée par des virgules :
+    # ADMIN_GROUPS=PBIRS-ADMINS,Domain Admins,Administrators,GRP_DATA_BI,GRP_DIRECTION,GRP_DATA_ENGINEERS
+    # -----------------------------------------------------------------------
+    ADMIN_GROUPS: str = "PBIRS-ADMINS,Domain Admins,Administrators,GRP_DATA_BI,GRP_DIRECTION,GRP_DATA_ENGINEERS"
 
-    # -----------------------------------------------------------------------
-    # Mapping Groupe AD (nom technique) → Département PBIRS (nom affiché)
-    # Modifiable dans .env sous forme JSON :
-    # AD_GROUP_TO_DEPT_MAP={"GRP-FINANCE": "Finance & Comptabilité", ...}
-    # -----------------------------------------------------------------------
-    # -----------------------------------------------------------------------
-    # Mapping Groupe AD (nom technique) → Département PBIRS (nom affiché)
-    # Modifiable dans .env sous forme JSON
-    # -----------------------------------------------------------------------
-    AD_GROUP_TO_DEPT_MAP: str = json.dumps({
-        "GRP_DIRECTION":        "Direction Générale",
-        "GRP_DATA_BI":          "Data & Business Intelligence",
-        "GRP_FINANCE":          "Finance",
-        "GRP_COMPTA":           "Comptabilité",
-        "GRP_IT_ADMIN":         "Administration IT",
-        "Domain Admins":        "Direction Générale",
-        "Administrators":       "Direction Générale",
-        "PBIRS-ADMINS":         "Direction Générale"
-    })
-
-    # -----------------------------------------------------------------------
-    # Hiérarchie des départements PBIRS :
-    # Un pôle parent permet de voir son contenu + celui de tous ses sous-pôles.
-    # Direction Générale voit tout le catalogue et tous les pôles.
-    # -----------------------------------------------------------------------
-    DEPT_HIERARCHY: str = json.dumps({
-        "Direction Générale":            ["Finance", "Comptabilité", "Data & Business Intelligence", "Administration IT", "01_Conception"],
-        "Finance":                       ["Comptabilité"],
-        "Comptabilité":                  [],
-        "Data & Business Intelligence":   ["01_Conception"],
-        "Administration IT":             [],
-        "01_Conception":                 []
-    })
+    def get_admin_groups(self) -> List[str]:
+        """Retourne la liste normalisée des groupes AD ayant les droits administrateurs / pleins pouvoirs."""
+        if isinstance(self.ADMIN_GROUPS, list):
+            return [g.split("\\")[-1].strip().upper() for g in self.ADMIN_GROUPS]
+        return [g.split("\\")[-1].strip().upper() for g in str(self.ADMIN_GROUPS).split(",") if g.strip()]
 
     # Power BI Report Server Configuration
     PBIRS_SERVER_URL: str = "http://localhost/Reports"
@@ -76,36 +53,20 @@ class Settings(BaseSettings):
     REPORTSERVER_SQL_PASSWORD: str = ""
     REPORTSERVER_MOCK_MODE: bool = False     # False = Connexion réelle à la base ReportServer
 
-    # Database locale SQLite
-    DATABASE_URL: str = "sqlite+aiosqlite:///./bicec_portal.db"
+    # Database locale SQLite (chemin absolu basé sur la racine du projet pour éviter tout conflit de CWD)
+    DATABASE_URL: str = f"sqlite+aiosqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bicec_portal.db').replace(os.sep, '/')}"
 
     def get_group_map(self) -> Dict[str, str]:
-        """Retourne le mapping groupe AD → département PBIRS."""
-        return json.loads(self.AD_GROUP_TO_DEPT_MAP)
+        """Méthode conservée pour compatibilité ascendante."""
+        return {}
 
     def get_dept_hierarchy(self) -> Dict[str, List[str]]:
-        """Retourne la hiérarchie des départements."""
-        return json.loads(self.DEPT_HIERARCHY)
+        """Méthode conservée pour compatibilité ascendante."""
+        return {}
 
     def get_allowed_departments(self, user_departments: List[str]) -> List[str]:
-        """
-        Calcule la liste complète des départements visibles par un utilisateur
-        en fonction de ses départements directs et de la hiérarchie.
-        Direction Générale (ou liste vide dans hierarchy) = accès à tout.
-        """
-        hierarchy = self.get_dept_hierarchy()
-        allowed = set(user_departments)
-
-        # Direction Générale et Data & Business Intelligence ont accès à TOUT
-        if "Direction Générale" in user_departments or "Data & Business Intelligence" in user_departments:
-            return list(hierarchy.keys())  # Accès total à tous les pôles et rapports
-
-        # Ajouter les sous-départements autorisés pour les autres métiers
-        for dept in list(allowed):
-            children = hierarchy.get(dept, [])
-            allowed.update(children)
-
-        return list(allowed)
+        """Méthode conservée pour compatibilité ascendante."""
+        return user_departments
 
     class Config:
         env_file = ".env"

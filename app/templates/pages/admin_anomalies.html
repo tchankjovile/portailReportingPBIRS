@@ -20,12 +20,14 @@
         </div>
 
         <!-- Compteur global -->
-        {% if stats.anomalies_pending > 0 %}
-        <div class="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900">
-            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-            <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ stats.anomalies_pending }} signalement(s) en attente</span>
+        <div id="anomalies-pending-counter">
+            {% if stats.anomalies_pending > 0 %}
+            <div class="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                <span class="text-sm font-bold text-red-700 dark:text-red-400">{{ stats.anomalies_pending }} signalement(s) en attente</span>
+            </div>
+            {% endif %}
         </div>
-        {% endif %}
     </div>
 
     <!-- Filtres statut -->
@@ -49,7 +51,7 @@
         {% if anomalies %}
         <div class="divide-y divide-gray-100 dark:divide-gray-700">
             {% for anomaly in anomalies %}
-            <div class="p-5 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors" x-data="{ expanded: false, actionOpen: false }">
+            <div id="anomaly-item-{{ anomaly.id }}" class="p-5 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors" x-data="{ expanded: false, formOpen: false }">
                 <div class="flex items-start justify-between gap-4">
 
                     <!-- Info principale -->
@@ -61,7 +63,7 @@
                                 'résolu': 'bg-emerald-100 text-emerald-700 border-emerald-200'
                             } %}
                             {% set status_icons = {'nouveau': '🔴', 'en_traitement': '🟡', 'résolu': '🟢'} %}
-                            <span id="status-badge-{{ anomaly.id }}" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border {{ status_classes.get(anomaly.status, 'bg-gray-100 text-gray-700 border-gray-200') }}">
+                            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold border {{ status_classes.get(anomaly.status, 'bg-gray-100 text-gray-700 border-gray-200') }}">
                                 {{ status_icons.get(anomaly.status, '⚪') }} {{ anomaly.status|title|replace('_', ' ') }}
                             </span>
                             <span class="text-xs font-mono text-gray-400">#{{ anomaly.id }}</span>
@@ -90,7 +92,7 @@
                             {% endif %}
                             <span class="text-[11px] text-gray-400">· {{ anomaly.created_at }}</span>
                             {% if anomaly.status == 'résolu' and anomaly.resolved_by %}
-                            <span class="text-[11px] text-emerald-600">· Résolu par {{ anomaly.resolved_by }} le {{ anomaly.resolved_at }}</span>
+                            <span class="text-[11px] text-emerald-600 font-semibold">· Résolu par {{ anomaly.resolved_by }} le {{ anomaly.resolved_at }}</span>
                             {% endif %}
                         </div>
 
@@ -102,21 +104,24 @@
                     </div>
 
                     <!-- Actions rapides -->
-                    <div class="flex-shrink-0 flex flex-col gap-2" x-data="{ formOpen: false }">
+                    <div class="flex-shrink-0 flex flex-col gap-2">
                         
                         {% if anomaly.status != 'résolu' %}
                         <button @click="formOpen = !formOpen"
                                 class="px-3 py-1.5 rounded-lg text-xs font-bold bg-bicec-orange text-white hover:bg-bicec-orange-hover transition-colors whitespace-nowrap">
                             Traiter
                         </button>
+                        {% else %}
+                        <span class="inline-flex items-center gap-1 text-xs text-emerald-600 font-bold px-2.5 py-1 bg-emerald-50 rounded-lg border border-emerald-200">
+                            ✓ Clôturé
+                        </span>
                         {% endif %}
 
                         <!-- Formulaire d'action inline -->
                         <div x-show="formOpen" x-transition style="display:none" class="mt-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2 min-w-[220px]">
                             <form hx-post="/admin/anomalies/{{ anomaly.id }}/status"
-                                  hx-target="#status-badge-{{ anomaly.id }}"
+                                  hx-target="#anomaly-item-{{ anomaly.id }}"
                                   hx-swap="outerHTML"
-                                  hx-on::after-request="formOpen = false"
                                   class="space-y-2">
                                 <select name="new_status" class="w-full text-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-bicec-orange">
                                     {% if anomaly.status == 'nouveau' %}
@@ -125,7 +130,7 @@
                                     <option value="résolu">🟢 Marquer Résolu</option>
                                 </select>
                                 <textarea name="admin_comment" 
-                                          placeholder="Commentaire optionnel..." 
+                                          placeholder="Commentaire de résolution..." 
                                           rows="2"
                                           class="w-full text-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:border-bicec-orange resize-none"></textarea>
                                 <div class="flex gap-2">

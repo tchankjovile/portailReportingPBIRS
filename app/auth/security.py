@@ -55,19 +55,15 @@ def require_authenticated_user(request: Request) -> Dict[str, Any]:
 
 def is_admin(user: Optional[Dict[str, Any]]) -> bool:
     """
-    Retourne True si l'utilisateur est administrateur :
-    - Appartient à l'un des groupes de settings.ADMIN_GROUPS (ex: Domain Admins, PBIRS-ADMINS)
-    - Ou est rattaché à la Direction Générale
+    Retourne True si l'utilisateur est administrateur / super-utilisateur :
+    - Appartient à l'un des groupes définis dans ADMIN_GROUPS du fichier .env
+      (ex: PBIRS-ADMINS, Domain Admins, Administrators, GRP_DATA_BI, GRP_DATA_ENGINEERS, etc.)
     """
     if not user:
         return False
-    user_groups = [g.upper() for g in user.get("groups", [])]
-    admin_groups = [g.upper() for g in getattr(settings, "ADMIN_GROUPS", ["PBIRS-ADMINS", "Domain Admins", "Administrators"])]
-    if any(ag in user_groups for ag in admin_groups):
-        return True
-    if user.get("department") in ["Direction Générale", "Data & Business Intelligence"]:
-        return True
-    return False
+    user_groups = [g.split("\\")[-1].strip().upper() for g in user.get("groups", [])]
+    admin_groups = settings.get_admin_groups()
+    return any(ag in user_groups for ag in admin_groups)
 
 
 def require_admin(request: Request) -> Dict[str, Any]:

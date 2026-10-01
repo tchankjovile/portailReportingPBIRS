@@ -38,40 +38,7 @@
             </a>
         </div>
 
-        <!-- Filtres par Métier / Départements -->
-        <div class="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-            <span class="px-3 text-[11px] font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500">Pôles & Métiers</span>
-            <div class="space-y-1">
-                {% set dept_icons = {
-                    'Direction Générale': 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
-                    'Data & Business Intelligence': 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-                    'Finance': 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
-                    'Comptabilité': 'M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z',
-                    'Administration IT': 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4',
-                    'Gestion des Risques': 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
-                    'Opérations Bancaires': 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z',
-                    'Finance & Comptabilité': 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-                    'Audit & Conformité': 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
-                    'Ressources Humaines': 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z'
-                } %}
-                
-                {% for dept in departments %}
-                {% if dept != 'Tous' %}
-                <a href="/catalog?dept={{ dept }}" 
-                   class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-gray-700 hover:text-bicec-orange transition-colors">
-                    <div class="flex items-center gap-2.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-bicec-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ dept_icons.get(dept, 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2') }}" />
-                        </svg>
-                        <span>{{ dept }}</span>
-                    </div>
-                </a>
-                {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-
-        <!-- Section Administration (visible uniquement pour les admins) -->
+        <!-- Section Administration (prioritaire, visible immédiatement pour les admins sans défilement) -->
         {% if is_admin %}
         <div class="space-y-1 pt-2 border-t border-gray-100 dark:border-gray-700">
             <span class="px-3 text-[11px] font-extrabold uppercase tracking-wider text-bicec-orange">Administration</span>
@@ -98,11 +65,43 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
-                    Signalements
+                    <span>Signalements</span>
                 </div>
+                <!-- Badge d'anomalies en attente (chargé et mis à jour via HTMX) -->
+                <span id="sidebar-anomaly-badge"
+                      hx-get="/api/anomalies/count-badge"
+                      hx-trigger="load, every 30s"
+                      hx-swap="outerHTML">
+                    {% if stats and stats.anomalies_nouveau and stats.anomalies_nouveau > 0 %}
+                    <span class="inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-black bg-red-600 text-white rounded-full animate-pulse shadow-sm">
+                        {{ stats.anomalies_nouveau }}
+                    </span>
+                    {% endif %}
+                </span>
             </a>
         </div>
         {% endif %}
+
+        <!-- Dossiers PBIRS autorisés -->
+        <div class="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+            <span class="px-3 text-[11px] font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500">Dossiers & Espaces PBIRS</span>
+            <div class="space-y-1">
+                {% for dept in departments %}
+                {% if dept != 'Tous' %}
+                <a href="/catalog?dept={{ dept }}" 
+                   class="flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-gray-700 hover:text-bicec-orange transition-colors">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-bicec-orange shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                        </svg>
+                        <span class="truncate">{{ dept }}</span>
+                    </div>
+                </a>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
 
     </div>
 
@@ -116,6 +115,9 @@
                 <div class="min-w-0">
                     <p class="text-xs font-bold text-gray-800 dark:text-gray-200 truncate">{{ user.display_name if user else '—' }}</p>
                     <p class="text-[10px] text-gray-400 font-mono truncate">{{ user.upn if user else '' }}</p>
+                    {% if user and user.department %}
+                    <p class="text-[10px] text-bicec-orange font-semibold font-mono truncate mt-0.5" title="Groupe Active Directory">AD : {{ user.department }}</p>
+                    {% endif %}
                 </div>
             </div>
             {% if is_admin %}

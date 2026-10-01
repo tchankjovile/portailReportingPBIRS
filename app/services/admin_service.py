@@ -244,8 +244,9 @@ async def get_all_anomalies(
 ) -> List[Dict[str, Any]]:
     """Retourne tous les signalements d'anomalies, filtrables par statut."""
     query = select(AnomalyReport).order_by(desc(AnomalyReport.created_at))
-    if status_filter and status_filter != "tous":
-        query = query.where(AnomalyReport.status == status_filter)
+    clean_filter = (status_filter or "").strip().lower()
+    if clean_filter and clean_filter != "tous":
+        query = query.where(func.lower(AnomalyReport.status) == clean_filter)
     result = await db.execute(query)
     anomalies = result.scalars().all()
     return [
@@ -253,19 +254,42 @@ async def get_all_anomalies(
             "id": a.id,
             "report_id": a.report_id,
             "report_name": a.report_name,
-            "report_path": a.report_path,
+            "report_path": a.report_path or "",
             "user_upn": a.user_upn,
             "user_name": a.user_name,
-            "user_dept": a.user_dept,
+            "user_dept": a.user_dept or "",
             "description": a.description,
-            "status": a.status,
+            "status": (a.status or "nouveau").lower(),
             "created_at": a.created_at.strftime("%d/%m/%Y %H:%M") if a.created_at else "",
             "resolved_at": a.resolved_at.strftime("%d/%m/%Y %H:%M") if a.resolved_at else None,
-            "resolved_by": a.resolved_by,
-            "admin_comment": a.admin_comment,
+            "resolved_by": a.resolved_by or "",
+            "admin_comment": a.admin_comment or "",
         }
         for a in anomalies
     ]
+
+
+async def get_anomaly_by_id(db: AsyncSession, anomaly_id: int) -> Optional[Dict[str, Any]]:
+    """Retourne les informations formatées d'un signalement d'anomalie."""
+    result = await db.execute(select(AnomalyReport).where(AnomalyReport.id == anomaly_id))
+    a = result.scalar_one_or_none()
+    if not a:
+        return None
+    return {
+        "id": a.id,
+        "report_id": a.report_id,
+        "report_name": a.report_name,
+        "report_path": a.report_path or "",
+        "user_upn": a.user_upn,
+        "user_name": a.user_name,
+        "user_dept": a.user_dept or "",
+        "description": a.description,
+        "status": (a.status or "nouveau").lower(),
+        "created_at": a.created_at.strftime("%d/%m/%Y %H:%M") if a.created_at else "",
+        "resolved_at": a.resolved_at.strftime("%d/%m/%Y %H:%M") if a.resolved_at else None,
+        "resolved_by": a.resolved_by or "",
+        "admin_comment": a.admin_comment or "",
+    }
 
 
 async def update_anomaly_status(
@@ -281,13 +305,21 @@ async def update_anomaly_status(
     if not anomaly:
         return False
 
-    anomaly.status = new_status
-    if new_status == "résolu":
+    clean_status = new_status.strip().lower()
+    anomaly.status = clean_status
+    if clean_status == "résolu":
         anomaly.resolved_at = datetime.datetime.utcnow()
         anomaly.resolved_by = resolver_upn
-    if admin_comment:
+    if admin_comment is not None:
         anomaly.admin_comment = admin_comment
 
+    audit = AuditLog(
+        user_upn=resolver_upn,
+        action="UPDATE_ANOMALY_STATUS",
+        report_id=anomaly.report_id,
+        details=f"Statut anomalie #{anomaly_id} passé à '{clean_status}' par {resolver_upn}."
+    )
+    db.add(audit)
     await db.commit()
     return True
 
@@ -327,22 +359,22 @@ async def get_admin_stats(db: AsyncSession) -> Dict[str, Any]:
     # Rapports actifs dans le portail local
     total_reports = (await db.execute(select(func.count(Report.id)))).scalar() or 0
 
-    # Anomalies par statut
+    # Anomalies par statut (comparaison insensible à la casse)
     nouveau_count = (
         await db.execute(
-            select(func.count(AnomalyReport.id)).where(AnomalyReport.status == "nouveau")
+            select(func.count(AnomalyReport.id)).where(func.lower(AnomalyReport.status) == "nouveau")
         )
     ).scalar() or 0
 
     en_traitement_count = (
         await db.execute(
-            select(func.count(AnomalyReport.id)).where(AnomalyReport.status == "en_traitement")
+            select(func.count(AnomalyReport.id)).where(func.lower(AnomalyReport.status) == "en_traitement")
         )
     ).scalar() or 0
 
     resolu_count = (
         await db.execute(
-            select(func.count(AnomalyReport.id)).where(AnomalyReport.status == "résolu")
+            select(func.count(AnomalyReport.id)).where(func.lower(AnomalyReport.status) == "résolu")
         )
     ).scalar() or 0
 

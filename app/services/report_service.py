@@ -26,33 +26,53 @@ class ReportService:
         count = result.scalar()
 
         if not settings.PBIRS_MOCK_MODE:
-            # --- Mode PBIRS réel : re-sync complet depuis l'API ---
-            logger.info("PBIRS_MOCK_MODE=False — Synchronisation depuis l'API PBIRS réelle...")
+            # --- Mode PBIRS réel : synchronisation intelligente sans perte de données ---
+            logger.info("PBIRS_MOCK_MODE=False — Synchronisation non-destructive depuis l'API PBIRS...")
             client = PBIRSClient()
             pbirs_items = await client.fetch_catalog_items()
 
-            # Vider le catalogue existant (même les anciennes données fictives)
-            existing = await db.execute(select(Report))
-            for report in existing.scalars().all():
-                await db.delete(report)
-            await db.commit()
+            # Indexer les rapports existants par chemin pour mettre à jour plutôt que supprimer
+            existing_result = await db.execute(select(Report))
+            existing_by_path = {r.path: r for r in existing_result.scalars().all()}
 
-            # Insérer les données fraîches depuis PBIRS
+            incoming_paths = set()
             for item in pbirs_items:
-                report = Report(
-                    pbirs_id=item["pbirs_id"],
-                    name=item["name"],
-                    path=item["path"],
-                    description=item["description"],
-                    category=item["category"],
-                    department=item["department"],
-                    tags=item["tags"],
-                    embed_url=item["embed_url"],
-                    is_featured=item.get("is_featured", False)
-                )
-                db.add(report)
+                path = item.get("path")
+                incoming_paths.add(path)
+                if path in existing_by_path:
+                    # Mise à jour sur place (conserve l'ID, les favoris et les anomalies existantes)
+                    rep = existing_by_path[path]
+                    rep.pbirs_id = item["pbirs_id"]
+                    rep.name = item["name"]
+                    rep.description = item["description"]
+                    rep.category = item["category"]
+                    rep.department = item["department"]
+                    rep.tags = item["tags"]
+                    rep.embed_url = item["embed_url"]
+                    rep.is_featured = item.get("is_featured", False)
+                else:
+                    # Nouveau rapport
+                    report = Report(
+                        pbirs_id=item["pbirs_id"],
+                        name=item["name"],
+                        path=item["path"],
+                        description=item["description"],
+                        category=item["category"],
+                        department=item["department"],
+                        tags=item["tags"],
+                        embed_url=item["embed_url"],
+                        is_featured=item.get("is_featured", False)
+                    )
+                    db.add(report)
+
+            # Supprimer de la DB locale les rapports qui ont été supprimés ou masqués sur PBIRS / ReportServer
+            for path, rep in existing_by_path.items():
+                if path not in incoming_paths:
+                    logger.info(f"Rapport obsolète/masqué ou supprimé sur PBIRS retiré : {rep.name} ({path})")
+                    await db.delete(rep)
+
             await db.commit()
-            logger.info(f"Catalogue synchronisé : {len(pbirs_items)} rapports chargés depuis PBIRS.")
+            logger.info(f"Catalogue synchronisé intelligemment : {len(pbirs_items)} rapports traités.")
 
         elif count == 0:
             # --- Mode Mock : insère les données de démo seulement si DB vide ---
@@ -71,6 +91,41 @@ class ReportService:
                 )
                 db.add(report)
             await db.commit()
+
+    def can_user_access_report(self, report: Dict[str, Any], user: Optional[Dict[str, Any]]) -> bool:
+        """
+        Vérifie si un utilisateur a le droit d'accéder à un rapport donné.
+        - Superusers (Admin, Direction Générale, Data & Business Intelligence) : Accès universel.
+        - Collaborateurs : Doivent figurer ou avoir un de leurs groupes AD dans les ALLOWED PBIRS du rapport.
+        """
+        if not user:
+            return False
+        from app.auth.security import is_admin
+        if is_admin(user):
+            return True
+
+        tags_str = report.get("raw_tags") or report.get("tags") or ""
+        if isinstance(tags_str, list):
+            tags_str = ",".join(tags_str)
+
+        if "ALLOWED:" not in tags_str:
+            # Si aucune règle PBIRS n'est renseignée, accès refusé aux collaborateurs par sécurité
+            return False
+
+        allowed_part = tags_str.split("ALLOWED:", 1)[1]
+        allowed_principals = [x.split("\\")[-1].strip().upper() for x in allowed_part.split(",") if x.strip()]
+        user_groups = [g.split("\\")[-1].strip().upper() for g in user.get("groups", [])]
+        user_name = user.get("username", "").split("\\")[-1].strip().upper()
+        user_upn_name = user.get("upn", "").split("@")[0].split("\\")[-1].strip().upper() if user.get("upn") else ""
+
+        if any(g in allowed_principals for g in user_groups):
+            return True
+        if user_name and user_name in allowed_principals:
+            return True
+        if user_upn_name and user_upn_name in allowed_principals:
+            return True
+
+        return False
 
 
     async def get_all_reports(
@@ -114,34 +169,34 @@ class ReportService:
         is_super = False
         user_groups = []
         user_name = ""
+        user_upn_name = ""
         if user:
             from app.auth.security import is_admin
-            is_super = is_admin(user) or user.get("department") in ["Direction Générale", "Data & Business Intelligence"]
-            user_groups = [g.upper().strip() for g in user.get("groups", [])]
-            user_name = user.get("username", "").upper().strip()
+            is_super = is_admin(user)
+            user_groups = [g.split("\\")[-1].strip().upper() for g in user.get("groups", [])]
+            user_name = user.get("username", "").split("\\")[-1].strip().upper()
+            if user.get("upn"):
+                user_upn_name = user.get("upn").split("@")[0].split("\\")[-1].strip().upper()
 
         output = []
         for r in reports:
-            # Si l'utilisateur n'a pas les droits totaux, filtrer selon ses permissions PBIRS
+            # Si l'utilisateur n'a pas les droits totaux, filtrer STRICTEMENT selon ses permissions PBIRS
             if user and not is_super:
                 has_access = False
                 tags_str = r.tags or ""
                 
-                # 1. Vérifier si un groupe AD de l'utilisateur a été autorisé dans PBIRS (Explorateur, etc.)
+                # Vérifier si un groupe AD ou le nom d'utilisateur est explicitement autorisé sur PBIRS
                 if "ALLOWED:" in tags_str:
                     allowed_part = tags_str.split("ALLOWED:", 1)[1]
-                    allowed_principals = [x.strip().upper() for x in allowed_part.split(",") if x.strip()]
+                    allowed_principals = [x.split("\\")[-1].strip().upper() for x in allowed_part.split(",") if x.strip()]
                     if any(g in allowed_principals for g in user_groups):
                         has_access = True
                     elif user_name and user_name in allowed_principals:
                         has_access = True
-
-                # 2. Vérifier si le département du rapport fait partie des départements autorisés
-                if not has_access and allowed_departments:
-                    if r.department in allowed_departments:
+                    elif user_upn_name and user_upn_name in allowed_principals:
                         has_access = True
 
-                # Si l'utilisateur n'a aucun droit sur ce rapport/dossier, on l'exclut
+                # Strict respect de la sécurité PBIRS : aucun fallback sur les départements AD
                 if not has_access:
                     continue
 
@@ -160,6 +215,7 @@ class ReportService:
                 "category": r.category,
                 "department": r.department,
                 "tags": display_tags,
+                "raw_tags": r.tags or "",
                 "embed_url": r.embed_url,
                 "view_count": r.view_count,
                 "is_featured": r.is_featured,
@@ -179,6 +235,11 @@ class ReportService:
         )
         is_fav = fav_result.scalar_one_or_none() is not None
 
+        display_tags = []
+        if r.tags:
+            clean_tag_str = r.tags.split("ALLOWED:")[0].strip().rstrip("|").strip()
+            display_tags = [t.strip() for t in clean_tag_str.split(",") if t.strip()]
+
         return {
             "id": r.id,
             "pbirs_id": r.pbirs_id,
@@ -187,7 +248,8 @@ class ReportService:
             "description": r.description,
             "category": r.category,
             "department": r.department,
-            "tags": r.tags.split(",") if r.tags else [],
+            "tags": display_tags,
+            "raw_tags": r.tags or "",
             "embed_url": r.embed_url,
             "view_count": r.view_count,
             "is_featured": r.is_featured,
@@ -294,11 +356,8 @@ class ReportService:
 
     async def get_departments_list(self, db: AsyncSession) -> List[str]:
         result = await db.execute(select(Report.department).distinct())
-        db_departments = [row[0] for row in result.all() if row[0]]
-        # Inclure les pôles & métiers officiels définis dans la hiérarchie BICEC
-        hierarchy_depts = [k for k in settings.get_dept_hierarchy().keys() if k != "Général"]
-        all_departments = sorted(list(set(db_departments + hierarchy_depts)))
-        return ["Tous"] + all_departments
+        db_departments = [row[0] for row in result.all() if row[0] and row[0] != "Général"]
+        return ["Tous"] + sorted(list(set(db_departments)))
 
     async def submit_anomaly(
         self,
@@ -323,6 +382,16 @@ class ReportService:
             status="nouveau"
         )
         db.add(anomaly)
+        
+        # Enregistrement dans le journal d'audit de sécurité
+        audit = AuditLog(
+            user_upn=user_upn,
+            action="REPORT_ANOMALY",
+            report_id=report_id,
+            details=f"Signalement d'anomalie sur '{report_name}' par {user_name} ({user_dept}): {description[:120]}...",
+        )
+        db.add(audit)
+
         await db.commit()
         await db.refresh(anomaly)
         return anomaly
